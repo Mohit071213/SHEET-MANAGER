@@ -1,0 +1,217 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net: deny everything unless explicitly allowed
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidUserWorkspace(data, userId) {
+      return data.keys().hasAll(['ownerId', 'email', 'activeWorkbookId', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'email', 'activeWorkbookId', 'createdAt', 'updatedAt'])
+        && data.ownerId is string && data.ownerId == userId && data.ownerId == request.auth.uid
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 200
+        && isValidId(data.activeWorkbookId) && data.activeWorkbookId.size() <= 64
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidWorkbookMaster(data, userId) {
+      return data.keys().hasAll([
+          'ownerId', 'fileName', 'sheetName', 'dateFormat', 'headerRowIndex',
+          'originalRecordCount', 'addedRecordCount', 'hasFrozenHeader', 'hasAutoFilter',
+          'columnWidths', 'templateChunkCount', 'version', 'updatedByDevice',
+          'fileSizeBytes', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'fileName', 'sheetName', 'dateFormat', 'headerRowIndex',
+          'originalRecordCount', 'addedRecordCount', 'hasFrozenHeader', 'hasAutoFilter',
+          'columnWidths', 'templateChunkCount', 'version', 'updatedByDevice',
+          'fileSizeBytes', 'createdAt', 'updatedAt'
+        ])
+        && data.ownerId is string && data.ownerId == userId && data.ownerId == request.auth.uid
+        && data.fileName is string && data.fileName.size() >= 1 && data.fileName.size() <= 200
+        && data.sheetName is string && data.sheetName.size() >= 1 && data.sheetName.size() <= 100
+        && data.dateFormat is string && data.dateFormat.size() >= 4 && data.dateFormat.size() <= 20
+        && data.headerRowIndex is int && data.headerRowIndex >= 1 && data.headerRowIndex <= 50
+        && data.originalRecordCount is int && data.originalRecordCount >= 0 && data.originalRecordCount <= 200000
+        && data.addedRecordCount is int && data.addedRecordCount >= 0 && data.addedRecordCount <= 200000
+        && data.hasFrozenHeader is bool
+        && data.hasAutoFilter is bool
+        && data.columnWidths is list && data.columnWidths.size() >= 1 && data.columnWidths.size() <= 10 && data.columnWidths[0] is number
+        && data.templateChunkCount is int && data.templateChunkCount >= 0 && data.templateChunkCount <= 50
+        && data.version is int && data.version >= 1
+        && data.updatedByDevice is string && data.updatedByDevice.size() >= 1 && data.updatedByDevice.size() <= 80
+        && data.fileSizeBytes is int && data.fileSizeBytes >= 0 && data.fileSizeBytes <= 25000000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidTemplateChunk(data, userId, workbookId) {
+      return data.keys().hasAll(['ownerId', 'workbookId', 'index', 'data', 'createdAt'])
+        && data.keys().hasOnly(['ownerId', 'workbookId', 'index', 'data', 'createdAt'])
+        && data.ownerId is string && data.ownerId == userId && data.ownerId == request.auth.uid
+        && data.workbookId is string && data.workbookId == workbookId
+        && data.index is int && data.index >= 0 && data.index < 50
+        && data.data is string && data.data.size() >= 1 && data.data.size() <= 600000
+        && data.createdAt is timestamp;
+    }
+
+    function isValidCallRecord(data, userId, workbookId) {
+      return data.keys().hasAll([
+          'ownerId', 'workbookId', 'rowIndex', 'date', 'serialId', 'mobileNo',
+          'category', 'subcategory', 'status', 'escalations', 'channels',
+          'remark', 'names', 'source', 'addedDateKey', 'deviceTag',
+          'isDuplicateMobile', 'isDuplicateSerial', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'workbookId', 'rowIndex', 'date', 'serialId', 'mobileNo',
+          'category', 'subcategory', 'status', 'escalations', 'channels',
+          'remark', 'names', 'source', 'addedDateKey', 'deviceTag',
+          'isDuplicateMobile', 'isDuplicateSerial', 'createdAt'
+        ])
+        && data.ownerId is string && data.ownerId == userId && data.ownerId == request.auth.uid
+        && data.workbookId is string && data.workbookId == workbookId
+        && data.rowIndex is int && data.rowIndex >= 1 && data.rowIndex <= 500000
+        && data.date is string && data.date.size() <= 24
+        && data.serialId is string && data.serialId.size() >= 1 && data.serialId.size() <= 64
+        && data.mobileNo is string && data.mobileNo.size() <= 24
+        && data.category is string && data.category.size() <= 100
+        && data.subcategory is string && data.subcategory.size() <= 100
+        && data.status in ['Resolved', 'Unresolved']
+        && data.escalations is string && data.escalations.size() <= 40
+        && data.channels is string && data.channels.size() <= 40
+        && data.remark is string && data.remark.size() <= 500
+        && data.names is string && data.names.size() <= 60
+        && data.source in ['master', 'added']
+        && data.addedDateKey is string && data.addedDateKey.size() <= 24
+        && data.deviceTag is string && data.deviceTag.size() <= 80
+        && data.isDuplicateMobile is bool
+        && data.isDuplicateSerial is bool
+        && data.createdAt is timestamp;
+    }
+
+    function isValidVersionDoc(data, userId, workbookId) {
+      return data.keys().hasAll([
+          'ownerId', 'workbookId', 'version', 'label', 'fileName',
+          'totalRecords', 'addedCount', 'deviceTag', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'workbookId', 'version', 'label', 'fileName',
+          'totalRecords', 'addedCount', 'deviceTag', 'createdAt'
+        ])
+        && data.ownerId is string && data.ownerId == userId && data.ownerId == request.auth.uid
+        && data.workbookId is string && data.workbookId == workbookId
+        && data.version is int && data.version >= 1
+        && data.label is string && data.label.size() >= 1 && data.label.size() <= 160
+        && data.fileName is string && data.fileName.size() >= 1 && data.fileName.size() <= 200
+        && data.totalRecords is int && data.totalRecords >= 0
+        && data.addedCount is int && data.addedCount >= 0
+        && data.deviceTag is string && data.deviceTag.size() >= 1 && data.deviceTag.size() <= 80
+        && data.createdAt is timestamp;
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+      allow create: if isOwner(userId) && isValidId(userId)
+        && isValidUserWorkspace(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isOwner(userId) && isValidId(userId)
+        && isValidUserWorkspace(incoming(), userId)
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['activeWorkbookId', 'email', 'updatedAt']);
+      allow delete: if false;
+
+      match /workbooks/{workbookId} {
+        allow get: if isOwner(userId) && isValidId(workbookId);
+        allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+        allow create: if isOwner(userId) && isValidId(workbookId)
+          && existsAfter(/databases/$(database)/documents/users/$(userId))
+          && isValidWorkbookMaster(incoming(), userId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isOwner(userId) && isValidId(workbookId)
+          && isValidWorkbookMaster(incoming(), userId)
+          && incoming().ownerId == existing().ownerId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (
+            (
+              incoming().version == existing().version + 1
+              && incoming().diff(existing()).affectedKeys().hasOnly([
+                'addedRecordCount', 'version', 'updatedByDevice', 'updatedAt'
+              ])
+            )
+            ||
+            (
+              incoming().version >= existing().version + 1
+              && incoming().diff(existing()).affectedKeys().hasOnly([
+                'fileName', 'sheetName', 'dateFormat', 'headerRowIndex',
+                'originalRecordCount', 'addedRecordCount', 'hasFrozenHeader',
+                'hasAutoFilter', 'columnWidths', 'templateChunkCount',
+                'version', 'updatedByDevice', 'fileSizeBytes', 'updatedAt'
+              ])
+            )
+          );
+        allow delete: if isOwner(userId) && isValidId(workbookId);
+
+        match /chunks/{chunkId} {
+          allow get: if isOwner(userId) && isValidId(workbookId) && isValidId(chunkId);
+          allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+          allow create: if isOwner(userId) && isValidId(workbookId) && isValidId(chunkId)
+            && getAfter(/databases/$(database)/documents/users/$(userId)/workbooks/$(workbookId)).data.ownerId == request.auth.uid
+            && isValidTemplateChunk(incoming(), userId, workbookId)
+            && incoming().createdAt == request.time;
+          allow update: if false;
+          allow delete: if isOwner(userId) && isValidId(workbookId) && isValidId(chunkId);
+        }
+
+        match /records/{recordId} {
+          allow get: if isOwner(userId) && isValidId(workbookId) && isValidId(recordId);
+          allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+          allow create: if isOwner(userId) && isValidId(workbookId) && isValidId(recordId)
+            && getAfter(/databases/$(database)/documents/users/$(userId)/workbooks/$(workbookId)).data.ownerId == request.auth.uid
+            && isValidCallRecord(incoming(), userId, workbookId)
+            && incoming().createdAt == request.time;
+          allow update: if false;
+          allow delete: if isOwner(userId) && isValidId(workbookId) && isValidId(recordId);
+        }
+
+        match /versions/{versionId} {
+          allow get: if isOwner(userId) && isValidId(workbookId) && isValidId(versionId);
+          allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+          allow create: if isOwner(userId) && isValidId(workbookId) && isValidId(versionId)
+            && getAfter(/databases/$(database)/documents/users/$(userId)/workbooks/$(workbookId)).data.ownerId == request.auth.uid
+            && isValidVersionDoc(incoming(), userId, workbookId)
+            && incoming().createdAt == request.time;
+          allow update: if false;
+          allow delete: if isOwner(userId) && isValidId(workbookId) && isValidId(versionId);
+        }
+      }
+    }
+  }
+}

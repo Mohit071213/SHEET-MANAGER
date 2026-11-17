@@ -1,0 +1,31 @@
+{
+  "id": "/",
+  "name": "CallSheet Manager",
+  "short_name": "CallSheet",
+  "description": "Mobile-first Excel customer calling ledger manager with automatic status mapping and duplicate-safe appending.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#107C41",
+  "background_color": "#F8FAFC",
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

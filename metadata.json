@@ -1,0 +1,6 @@
+{
+  "name": "CallSheet Manager",
+  "description": "Mobile-first Excel customer calling ledger manager with automatic status mapping, duplicate-safe row appending, offline PWA support, and cross-device sync.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

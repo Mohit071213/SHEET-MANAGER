@@ -1,0 +1,167 @@
+{
+  "entities": {
+    "UserWorkspace": {
+      "title": "UserWorkspace",
+      "description": "Root workspace owner profile isolating private calling workbooks per authenticated user.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "maxLength": 200 },
+        "activeWorkbookId": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "email", "activeWorkbookId", "createdAt", "updatedAt"]
+    },
+    "WorkbookMaster": {
+      "title": "WorkbookMaster",
+      "description": "Active master calling Excel workbook metadata and optimistic concurrency version counter.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "fileName": { "type": "string", "maxLength": 200 },
+        "sheetName": { "type": "string", "maxLength": 100 },
+        "dateFormat": { "type": "string", "maxLength": 20 },
+        "headerRowIndex": { "type": "integer" },
+        "originalRecordCount": { "type": "integer" },
+        "addedRecordCount": { "type": "integer" },
+        "hasFrozenHeader": { "type": "boolean" },
+        "hasAutoFilter": { "type": "boolean" },
+        "columnWidths": { "type": "array" },
+        "templateChunkCount": { "type": "integer" },
+        "version": { "type": "integer" },
+        "updatedByDevice": { "type": "string", "maxLength": 80 },
+        "fileSizeBytes": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "ownerId",
+        "fileName",
+        "sheetName",
+        "dateFormat",
+        "headerRowIndex",
+        "originalRecordCount",
+        "addedRecordCount",
+        "hasFrozenHeader",
+        "hasAutoFilter",
+        "columnWidths",
+        "templateChunkCount",
+        "version",
+        "updatedByDevice",
+        "fileSizeBytes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "TemplateChunk": {
+      "title": "TemplateChunk",
+      "description": "Base64 slice of the original .xlsx master workbook template for faithful cross-device Excel export.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "workbookId": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "index": { "type": "integer" },
+        "data": { "type": "string", "maxLength": 600000 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "workbookId", "index", "data", "createdAt"]
+    },
+    "CallRecordDoc": {
+      "title": "CallRecordDoc",
+      "description": "Individual customer calling record row preserving exact 10-column schema.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "workbookId": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "rowIndex": { "type": "integer" },
+        "date": { "type": "string", "maxLength": 24 },
+        "serialId": { "type": "string", "maxLength": 64 },
+        "mobileNo": { "type": "string", "maxLength": 24 },
+        "category": { "type": "string", "maxLength": 100 },
+        "subcategory": { "type": "string", "maxLength": 100 },
+        "status": { "type": "string", "enum": ["Resolved", "Unresolved"] },
+        "escalations": { "type": "string", "maxLength": 40 },
+        "channels": { "type": "string", "maxLength": 40 },
+        "remark": { "type": "string", "maxLength": 500 },
+        "names": { "type": "string", "maxLength": 60 },
+        "source": { "type": "string", "enum": ["master", "added"] },
+        "addedDateKey": { "type": "string", "maxLength": 24 },
+        "deviceTag": { "type": "string", "maxLength": 80 },
+        "isDuplicateMobile": { "type": "boolean" },
+        "isDuplicateSerial": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "ownerId",
+        "workbookId",
+        "rowIndex",
+        "date",
+        "serialId",
+        "mobileNo",
+        "category",
+        "subcategory",
+        "status",
+        "escalations",
+        "channels",
+        "remark",
+        "names",
+        "source",
+        "addedDateKey",
+        "deviceTag",
+        "isDuplicateMobile",
+        "isDuplicateSerial",
+        "createdAt"
+      ]
+    },
+    "WorkbookVersionDoc": {
+      "title": "WorkbookVersionDoc",
+      "description": "Immutable version history log entry recording workbook uploads and synced batches.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "workbookId": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "version": { "type": "integer" },
+        "label": { "type": "string", "maxLength": 160 },
+        "fileName": { "type": "string", "maxLength": 200 },
+        "totalRecords": { "type": "integer" },
+        "addedCount": { "type": "integer" },
+        "deviceTag": { "type": "string", "maxLength": 80 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "ownerId",
+        "workbookId",
+        "version",
+        "label",
+        "fileName",
+        "totalRecords",
+        "addedCount",
+        "deviceTag",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserWorkspace" },
+      "description": "Private root workspace document owned exclusively by userId."
+    },
+    "/users/{userId}/workbooks/{workbookId}": {
+      "schema": { "$ref": "#/entities/WorkbookMaster" },
+      "description": "Master workbook metadata and optimistic version lock."
+    },
+    "/users/{userId}/workbooks/{workbookId}/chunks/{chunkId}": {
+      "schema": { "$ref": "#/entities/TemplateChunk" },
+      "description": "Chunked base64 slices of the master .xlsx template."
+    },
+    "/users/{userId}/workbooks/{workbookId}/records/{recordId}": {
+      "schema": { "$ref": "#/entities/CallRecordDoc" },
+      "description": "Individual customer calling rows ordered by rowIndex."
+    },
+    "/users/{userId}/workbooks/{workbookId}/versions/{versionId}": {
+      "schema": { "$ref": "#/entities/WorkbookVersionDoc" },
+      "description": "Version history entries for workbook updates and synced batches."
+    }
+  }
+}
