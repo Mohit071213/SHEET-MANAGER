@@ -191,25 +191,38 @@ export const MasterExcelView: React.FC<MasterExcelViewProps> = ({
               </div>
             </div>
             <div>
-              <div className="text-slate-500">Categories Extracted</div>
+              <div className="text-slate-500">Worksheets Preserved</div>
               <div className="mt-0.5 font-mono font-semibold text-slate-900 tabular-nums">
-                {Object.keys(metadata.extractedCategories).length}
+                {metadata.sheetNames?.length ?? 1}
               </div>
             </div>
             <div>
-              <div className="text-slate-500">Column 9 Header</div>
-              <div className="mt-0.5 font-mono font-semibold text-slate-900">
-                Serial id (Retained)
+              <div className="text-slate-500">Excel Dropdown Rules</div>
+              <div className="mt-0.5 font-semibold text-slate-900">
+                {metadata.hasDropdownValidations ? 'Preserved & extended' : 'Enforced via app'}
               </div>
+              {metadata.workbookDropdowns &&
+                (metadata.workbookDropdowns.categories ||
+                  metadata.workbookDropdowns.subcategories ||
+                  metadata.workbookDropdowns.remarks) && (
+                  <div className="mt-0.5 font-mono text-[10px] text-slate-500 tabular-nums">
+                    Cat {metadata.workbookDropdowns.categories?.length ?? 3} · Sub{' '}
+                    {metadata.workbookDropdowns.subcategories?.length ?? 6} · Rem{' '}
+                    {metadata.workbookDropdowns.remarks?.length ?? 45}
+                  </div>
+                )}
             </div>
           </div>
 
           <div className="border-t border-slate-200 pt-3">
             <div className="text-xs font-semibold text-slate-700 mb-2">
-              Exact 10 Output Columns
+              Detected Workbook Columns ({metadata.headers?.length ?? EXACT_EXCEL_HEADERS.length})
             </div>
             <div className="flex flex-wrap gap-1.5 text-[11px] font-mono text-slate-600">
-              {EXACT_EXCEL_HEADERS.map((h, i) => (
+              {(metadata.headers && metadata.headers.length > 0
+                ? metadata.headers
+                : EXACT_EXCEL_HEADERS
+              ).map((h, i) => (
                 <span
                   key={`${h}-${i}`}
                   className="rounded border border-slate-200 bg-[#F8FAFC] px-2 py-1"

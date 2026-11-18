@@ -1,0 +1,1038 @@
+# MASTER BUILD PROMPT — CALLSHEET MANAGER
+## Complete AI-Powered Bulk Calling Data Processing & Excel Management System
+
+You are acting as a senior full-stack developer, AI engineer, Excel automation specialist and software architect.
+
+Your task is to inspect, fix and complete my existing application called **CallSheet Manager / Sheet Manager**.
+
+I want a fully functional AI-powered application that eliminates manual calling-data arrangement for four employees.
+
+This is an implementation task, not a UI mockup or a demonstration.
+
+Every button, dropdown, processing function, user workspace, Excel import/export operation and synchronization feature must actually work.
+
+---
+
+# PART 1 — EXISTING PROJECT AND DEVELOPMENT RULES
+
+Existing GitHub repository:
+
+https://github.com/Mohit071213/SHEET-MANAGER
+
+Existing deployment:
+
+https://sheet-manager-app.pages.dev
+
+The Google AI Studio application may contain newer changes. Inspect the actual connected project before making modifications.
+
+### Mandatory development rules
+
+1. Continue the existing project.
+2. Do not create a replacement application.
+3. Do not unnecessarily rewrite working components.
+4. Do not remove existing functionality.
+5. Do not change existing data structures without understanding their impact.
+6. Inspect the complete codebase before modifying anything.
+7. Inspect the attached master Excel workbook before implementing column mapping.
+8. Identify existing bugs and missing features.
+9. Prepare an implementation plan.
+10. Implement and test each phase.
+11. Preserve existing customer records.
+12. Never claim a feature works without testing it.
+
+The existing application should remain lightweight, maintainable and suitable for daily operational use.
+
+# PART 2 — FOUR EMPLOYEE SELECTION
+
+The first screen must display exactly four selectable employee names.
+
+**Employees:**
+
+1. Bhaskar
+2. Mohit
+3. Dishant
+4. Vishal
+
+### Initial screen
+
+When someone opens the application, show four individual selectable employee cards.
+
+Expected workflow:
+
+OPEN APPLICATION → SELECT EMPLOYEE → OPEN INDIVIDUAL DASHBOARD.
+
+Requirements:
+
+- No dashboard before employee selection.
+- No manual name typing.
+- No fifth employee.
+- Provide a Switch User option.
+- Remember the selected user during the session.
+- Automatically identify the selected employee.
+- Automatically populate the employee name in applicable Excel fields.
+
+### Individual master workbooks
+
+Bhaskar → Bhaskar Master Sheet
+
+Mohit → Mohit Master Sheet
+
+Dishant → Dishant Master Sheet
+
+Vishal → Vishal Master Sheet
+
+Each employee must have an independent:
+
+- Master workbook.
+- Dashboard.
+- Record history.
+- Upload history.
+- Processing history.
+- Data storage.
+
+Never mix records between employees.
+
+A user must not be able to download or modify another employee's customer data.
+
+Name selection is not sufficient security for confidential financial-service records. Implement appropriate authentication, employee PIN protection if supported by the existing application, and server-side access controls.
+
+Do not introduce unnecessary paid authentication services.
+
+# PART 3 — MASTER EXCEL WORKBOOK IS THE SOURCE OF TRUTH
+
+I will attach my actual master Excel workbook.
+
+**You MUST inspect this workbook before implementing the data-processing engine.**
+
+Do not assume that the example headers in this prompt are the actual headers.
+
+Extract and understand:
+
+1. Exact headers.
+2. Exact header sequence.
+3. Worksheet names.
+4. Dropdown options.
+5. Data validation rules.
+6. Category values.
+7. Subcategory values.
+8. Remarks values.
+9. Call Status values.
+10. Escalation values.
+11. Channel values.
+12. Date and number formats.
+13. Existing formulas.
+14. Existing formatting.
+15. Existing records.
+
+### Workbook preservation
+
+The existing master workbook must remain the permanent source of truth.
+
+- Do not rename headers.
+- Do not change column order.
+- Do not remove dropdowns.
+- Do not destroy formatting.
+- Do not delete previous records.
+- Do not create a new sheet for each upload.
+- Do not replace the master workbook with a blank file.
+- Do not remove existing worksheets.
+- Preserve formulas and validation rules wherever possible.
+
+If one template workbook is supplied for all employees, create four independent initial copies, one per employee, and maintain them separately.
+
+New records must be appended to the correct existing master sheet.
+
+The application must support downloading the complete updated workbook.
+
+# PART 4 — EXACT CATEGORY DROPDOWN
+
+Category must contain ONLY these three values:
+
+1. Query
+2. Request
+3. Complaint
+
+No other Category value is permitted.
+
+# PART 5 — EXACT SUBCATEGORY DROPDOWN
+
+Subcategory must contain ONLY these six values:
+
+1. General information related
+2. Credit Discrepancy
+3. Charges & Tenure
+4. Settlement & Waiver
+5. Extension Related
+6. Refund & Double Deduction
+
+No other Subcategory value is permitted.
+
+# PART 6 — EXACT REMARKS DROPDOWN
+
+Remarks must contain ONLY the following 45 approved options.
+
+1. cx asking repayment date inquiries
+2. Bank details occupied
+3. Payment updation
+4. Foreclose & Cooling period
+5. ivr calls
+6. CX NOT RESPONSE THE CALL
+7. Transfering
+8. payment receipts
+9. general query
+10. cx foreclose the loan
+11. CX requested to stop IVR calls, is irritated, and will pay by end of day
+12. CX paid but not updated in app
+13. CX ASKING OVERDUE AMOUNT INQUIRIES
+14. getting fraud &harassment calls
+15. CX DELETED THE ACCOUNT
+16. E-NACH RELATED
+17. Request for company location / registration details
+18. GST & RBI registration details
+19. Loan stage / loan status enquiry
+20. Loan rejection reason
+21. Suit Filed status removal
+22. Post-Written off removal
+23. DPD removal
+24. Outstanding balance removal
+25. Waiver request and settlement cases
+26. Refund for failed payment
+27. Refund for Extra Payment
+28. Extension request for more days
+29. Complaint on wrong details update in credit reports
+30. Incorrect loan details mapped
+31. Payment status / loan status not updated
+32. Charges, Rates & FPC related
+33. Coercive methods of collection
+34. APR logic and understanding
+35. Soft call related complaints
+36. NOC
+37. Cancel request
+38. bank details
+39. other language
+40. higher limit/ tenure
+41. Payment link
+42. partial payment query
+43. cx disconnect the call in conversation
+44. Application issue
+45. Change Details
+
+### Important restrictions
+
+- These are the only allowed Remarks options.
+- Preserve the exact spelling and capitalization.
+- Do not create new options.
+- Do not replace these with AI-generated wording.
+- Do not use raw shortcuts as the final Remarks value.
+- The AI must select the correct existing option based on meaning and context.
+
+# PART 7 — FREE AI-POWERED DATA PROCESSING AGENT
+
+This is the main purpose of the application.
+
+I want a genuinely intelligent AI agent that can analyse messy, unstructured, bulk-pasted calling data and automatically arrange it in the correct Excel columns.
+
+Do not build only a keyword-matching system and call it AI.
+
+Use a hybrid architecture:
+
+1. Deterministic parsing for numbers, dates and structured fields.
+2. Context-aware AI for understanding customer remarks.
+3. A configurable shortcut dictionary.
+4. Exact dropdown mapping.
+5. Validation and confidence checking.
+6. Reliable rule-based fallback.
+
+### AI capabilities
+
+The agent must understand:
+
+- Shortcuts.
+- Abbreviations.
+- Spelling mistakes.
+- Incomplete sentences.
+- Natural-language remarks.
+- Mixed formats.
+- Multiple records pasted together.
+- Different fields appearing in different orders.
+- Missing values.
+- Additional information.
+- Call outcomes and customer issues.
+
+The agent must understand what the user means, not merely copy words.
+
+### FREE AI REQUIREMENT
+
+AI features must not require a paid API subscription.
+
+Explore these options:
+
+- Lightweight local AI through Ollama.
+- Open-source models with suitable licenses.
+- Local processing.
+- Free inference options only where their terms and usage limits permit.
+- Deterministic fallback when AI is unavailable.
+
+Do not make Gemini API, OpenAI API or another paid API compulsory.
+
+Do not introduce paid infrastructure unnecessarily.
+
+The deployed application must remain usable without a local AI service.
+
+If local AI is used, provide a clear setup guide and connection status. Do not assume a Cloudflare-hosted application can directly access a user's local Ollama service without an explicitly configured connection.
+
+Never silently send customer mobile numbers or financial-service records to external AI providers.
+
+# PART 8 — FLEXIBLE BULK INPUT RECOGNITION
+
+Users will paste data directly from Excel, messaging applications or other sources.
+
+There is NO fixed input format.
+
+The agent must accept all the following combinations.
+
+### Case A — Phone number and remark
+
+9876543210 busy
+
+8101446595 no response
+
+9280138546 repayment
+
+Expected:
+- Identify mobile number.
+- Interpret remark.
+- Serial ID = NA.
+
+### Case B — Serial ID and remark
+
+92801385 rejected
+
+92801386 resolved
+
+Expected:
+- Identify Serial ID.
+- Mobile number remains blank.
+- Map the correct status and remarks.
+
+### Case C — Serial ID followed by mobile number
+
+92801385 9876543210 busy
+
+92801386 8101446595 rejected
+
+Expected:
+- Serial ID goes into Serial ID.
+- 10-digit number goes into Registered Mobile No.
+- Busy/rejected goes into Call Status.
+
+### Case D — Serial ID and mobile number separated by comma
+
+94147470,6006838660
+
+94160766,8088499968
+
+94121407,7995455339
+
+94049868,9848189322
+
+94267908,9891208358
+
+Expected:
+
+| Serial ID | Registered Mobile No |
+|---|---|
+| 94147470 | 6006838660 |
+| 94160766 | 8088499968 |
+| 94121407 | 7995455339 |
+| 94049868 | 9848189322 |
+| 94267908 | 9891208358 |
+
+This is a mandatory parsing rule.
+
+The current application has previously failed to identify these Serial IDs correctly. Fix the actual parser.
+
+### Case E — Phone number and Serial ID in reversed order
+
+9876543210 92801385 busy
+
+The agent must identify the two numbers by their patterns, not by position.
+
+### Case F — Mixed records
+
+92801385 rejected
+
+9876543210 busy
+
+92801386 8101446595 no response
+
+8101446596 repayment link
+
+92801387 general enquiry
+
+9876543211 disconnected
+
+Process each record independently.
+
+### Case G — Excel-pasted rows with multiple empty columns
+
+Example:
+
+1    9555917883            Busy
+
+2    94147470,6006838660   Not Available
+
+3    9552797240            Busy
+
+The parser must preserve row alignment and not confuse blank columns or input sequence numbers with actual Serial IDs.
+
+### Case H — Additional details
+
+92801385 resolved payment link sent
+
+9876543210 customer asking for repayment details
+
+92801386 transferred to concern department
+
+The agent must extract all applicable information and place it into the appropriate fields.
+
+### Case I — Timestamp-based input
+
+12:18 2nd resolved
+
+12:24 tenure
+
+12:26 Tamil cx
+
+12:29 transferred 1st
+
+Understand the context of 1st, 2nd and timestamps using the surrounding records when available.
+
+If the reference cannot be reliably resolved, flag it for review.
+
+# PART 9 — SERIAL ID AND PHONE NUMBER DETECTION
+
+This is a strict rule.
+
+In the supplied calling data:
+
+- Registered mobile numbers contain 10 digits.
+- Serial IDs commonly contain 8 digits.
+- Serial ID can appear before a phone number.
+- Both can be combined in one cell.
+- Both can be separated by commas, spaces or tabs.
+
+### Mandatory rules
+
+1. Detect 10-digit numbers as Registered Mobile No.
+2. Detect 8-digit Serial IDs separately using the established format and input context.
+3. If an 8-digit Serial ID appears before a 10-digit number, extract both.
+4. If Serial ID is missing, enter NA.
+5. NEVER leave Serial ID blank.
+6. NEVER place a mobile number in Serial ID.
+7. If mobile number is missing, leave its cell blank.
+8. Preserve exact digits and leading zeros.
+9. Never truncate or modify numbers.
+10. Do not treat input row sequence numbers as Serial IDs.
+11. If an ambiguous number cannot be confidently identified, flag it.
+
+### Input sequence number
+
+Example:
+
+1 9555917883 Busy
+
+2 94147470,6006838660 Not Available
+
+3 9552797240 Busy
+
+Here, 1, 2 and 3 are input sequence numbers, not Serial IDs.
+
+They must not be inserted into the Serial ID column.
+
+# PART 10 — CALL STATUS AND REMARKS MUST BE SEPARATE
+
+The agent must understand the difference between Call Status and Remarks.
+
+Examples of calling outcomes in the supplied dataset:
+
+- Busy
+- Not Available
+- No Response
+- Disconnected
+- Resolved
+- Rejected
+- No Answer
+- Invalid
+- Not Connected
+- Other Language
+- Transfer
+
+These are examples extracted from my supplied calling records, not permission to create new dropdown values.
+
+Inspect the actual Call Status dropdown in the attached master workbook and use its exact values.
+
+Map spelling and shortcut variations to the actual permitted Call Status value.
+
+Examples:
+
+- busy → Busy
+- no res → matching No Response option
+- no answer → matching No Answer option
+- not available → matching Not Available option
+- disconnected → matching Disconnected option
+- resolved → matching Resolved option
+- rejected → matching Rejected option
+
+Do not automatically put these calling outcomes into Remarks.
+
+### Additional remarks
+
+Examples:
+
+- Pay Link
+- Repayment
+- Bank Change
+- Other Language
+- Transfer
+
+These must be interpreted using context and mapped to the correct available fields.
+
+Examples:
+
+`8962714926 resolved, pay link`
+
+Expected:
+- Registered Mobile No: 8962714926
+- Serial ID: NA
+- Call Status: Resolved
+- Remarks: Payment link
+
+`6297228561 Bank Change`
+
+Expected:
+- Registered Mobile No: 6297228561
+- Serial ID: NA
+- Remarks: bank details or Bank details occupied, depending on context.
+
+Do not invent an unavailable mapping. Flag genuine ambiguity.
+
+# PART 11 — INTELLIGENT SHORTCUT DICTIONARY
+
+The agent must support configurable shortcuts.
+
+Initial examples:
+
+| Raw input | Expected interpretation |
+|---|---|
+| gen | general query |
+| general | general query |
+| no res | CX NOT RESPONSE THE CALL |
+| no response | CX NOT RESPONSE THE CALL |
+| pay link | Payment link |
+| payment link | Payment link |
+| repayment date | cx asking repayment date inquiries |
+| overdue | CX ASKING OVERDUE AMOUNT INQUIRIES |
+| paid not updated | CX paid but not updated in app |
+| bank change | bank details |
+| NOC | NOC |
+| tenure | Charges & Tenure or higher limit/ tenure, according to context |
+| other language | other language |
+| transfer | Transfering |
+| fraud calls | getting fraud &harassment calls |
+| refund failed | Refund for failed payment |
+| extra payment | Refund for Extra Payment |
+
+These are initial suggestions.
+
+The agent must consider the complete meaning before choosing a dropdown.
+
+### Shortcut management
+
+Provide a management screen where an authorized administrator can:
+
+- Add shortcuts.
+- Edit shortcuts.
+- Remove incorrect mappings.
+- Map shortcuts to Category.
+- Map shortcuts to Subcategory.
+- Map shortcuts to Remarks.
+- Save confirmed mappings.
+- Review mapping history.
+
+Never automatically save an uncertain AI guess as a permanent shortcut.
+
+# PART 12 — CATEGORY AND SUBCATEGORY CLASSIFICATION
+
+The agent must analyse the customer's actual issue and choose the correct combination.
+
+Category choices:
+
+Query / Request / Complaint.
+
+Subcategory choices:
+
+General information related / Credit Discrepancy / Charges & Tenure / Settlement & Waiver / Extension Related / Refund & Double Deduction.
+
+Examples:
+
+- General information enquiry → Query / General information related.
+- Credit report correction complaint → Complaint / Credit Discrepancy.
+- Loan interest or charges enquiry → Query / Charges & Tenure.
+- Settlement request → Request / Settlement & Waiver.
+- Extension request → Request / Extension Related.
+- Refund request → appropriate Request or Complaint classification / Refund & Double Deduction.
+
+The agent must use context.
+
+Do not assume every remark automatically determines Category.
+
+If the context is insufficient, flag it rather than making up an answer.
+
+# PART 13 — AUTOMATIC EMPLOYEE, DATE AND OTHER FIELDS
+
+Automatically identify the selected employee.
+
+Automatically populate their name in the applicable Names column.
+
+Automatically populate the appropriate date.
+
+Preserve explicit dates and historical dates supplied in the input.
+
+Do not overwrite historical dates with today's date.
+
+For missing fields:
+- Serial ID: NA.
+- Registered Mobile No: blank.
+- Other unavailable fields: blank unless the master workbook's established business rules require another value.
+
+Never fabricate information.
+
+# PART 14 — PERMANENT MASTER WORKBOOK AND APPEND-ONLY SYSTEM
+
+Each employee must have one permanent master workbook.
+
+Expected workflow:
+
+1. Employee opens application.
+2. Selects their name.
+3. Their master workbook loads.
+4. They paste raw data.
+5. Agent analyses the entire batch.
+6. Agent extracts all fields.
+7. Agent maps dropdowns.
+8. Agent detects duplicates.
+9. Agent shows exceptions.
+10. Agent appends records.
+11. Updated workbook is generated.
+12. Employee downloads the complete Excel workbook.
+
+### Strict preservation requirements
+
+- Never replace the master with a new empty file.
+- Never delete previous records during normal synchronization.
+- Never upload only the latest batch as the new master.
+- Never create a new sheet for every upload.
+- Never overwrite another employee's workbook.
+- Never silently discard failed or ambiguous records.
+
+Use transactional updates, safe synchronization and backups.
+
+The latest downloaded workbook must include previous records plus newly appended records.
+
+If the same employee uses multiple devices, prevent conflicting updates.
+
+# PART 15 — DUPLICATE DETECTION
+
+Check records against the employee's existing master workbook.
+
+Use available identifiers:
+
+- Serial ID.
+- Registered mobile number.
+- Date.
+- Other available record details.
+
+Avoid duplicate insertion when the same batch is submitted twice.
+
+Show duplicate warnings.
+
+Do not automatically delete legitimate repeat calls.
+
+Allow users to skip duplicates or retain legitimate repeat calls.
+
+Never overwrite existing historical records because of a duplicate match.
+
+# PART 16 — DASHBOARD AND INTERFACE
+
+Keep the interface clean, professional and straightforward.
+
+### Screen 1 — Employee selection
+
+Four cards:
+
+Bhaskar / Mohit / Dishant / Vishal.
+
+### Screen 2 — Individual dashboard
+
+Display:
+
+- Selected employee name.
+- Master workbook name.
+- Total records.
+- New records processed.
+- Recent processing history.
+- Bulk input box.
+- Analyse & Process with AI button.
+- Processing status.
+- Exception count.
+- Updated records preview.
+- Download Updated Excel button.
+- Switch User option.
+
+### Screen 3 — Bulk processing
+
+Provide a large text area that accepts direct Excel copy-paste.
+
+Buttons:
+
+- Analyse & Process with AI.
+- Clear Input.
+- Review Exceptions.
+- Append to Master.
+- Download Updated Excel.
+
+Do not require users to arrange columns manually.
+
+### Screen 4 — Processing results
+
+Display:
+
+- Total input records.
+- Successfully analysed records.
+- Mobile numbers identified.
+- Serial IDs identified.
+- Serial IDs assigned NA.
+- Call statuses mapped.
+- Categories selected.
+- Subcategories selected.
+- Remarks selected.
+- Duplicate records.
+- Records requiring review.
+
+Show a preview of the processed rows.
+
+Only uncertain records should require attention.
+
+# PART 17 — EXCEL IMPORT AND EXPORT
+
+Use the existing ExcelJS functionality where appropriate.
+
+The output must be a genuine `.xlsx` workbook.
+
+Preserve:
+
+- Existing headers.
+- Existing worksheets.
+- Existing records.
+- Existing formatting.
+- Existing dropdown validations.
+- Formulas.
+- Column widths where possible.
+- Date formats.
+- Number formats.
+- Text values with leading zeros.
+
+Store phone numbers and Serial IDs safely as text where necessary.
+
+Do not export CSV renamed as XLSX.
+
+The downloaded workbook must open correctly in Microsoft Excel.
+
+# PART 18 — FREE TECHNOLOGY AND AI
+
+My requirement is ZERO MANDATORY PAID COST.
+
+Use the existing project architecture wherever possible:
+
+- React.
+- Vite.
+- TypeScript.
+- ExcelJS.
+- Existing Firebase integration where appropriate.
+- Cloudflare Pages.
+- IndexedDB where suitable.
+- Local AI where practical.
+
+Do not add a compulsory paid API.
+
+Do not add a paid database or server unnecessarily.
+
+The AI system should work in layers:
+
+**Layer 1:** Deterministic data extraction.
+
+**Layer 2:** Configurable shortcut and business-rule engine.
+
+**Layer 3:** Context-aware AI analysis.
+
+**Layer 4:** Local inference through a suitable free model when required.
+
+**Layer 5:** Validation and human review for ambiguous records.
+
+The system must still process structured and familiar data correctly if AI is unavailable.
+
+Document any local model installation, hardware requirements and limitations.
+
+Do not promise unlimited free cloud AI if the provider has usage limits.
+
+# PART 19 — SECURITY AND PRIVACY
+
+This application handles customer information from financial-service calling operations.
+
+Mandatory:
+
+- Secure employee authentication.
+- Four independent workspaces.
+- Server-side access control.
+- Secure Firebase rules if Firebase is used.
+- Protected workbook downloads.
+- No exposed API secrets.
+- No public customer data.
+- No unnecessary third-party transmission.
+- File validation.
+- Safe data synchronization.
+- Appropriate backups.
+- No customer numbers in public logs.
+
+Test account isolation before production deployment.
+
+# PART 20 — ACTUAL 42-RECORD TEST DATA
+
+Use this dataset as an acceptance test for the parser.
+
+The numbers before commas in the five identified records are Serial IDs. The first number at the beginning of each row is only the input sequence.
+
+| Row | Raw data | Call outcome / extra remark |
+|---:|---|---|
+| 1 | 9555917883 | Busy |
+| 2 | 94147470,6006838660 | Not Available |
+| 3 | 9552797240 | Busy |
+| 4 | 8136902400 | No Response |
+| 5 | 6309149813 | Disconnected |
+| 6 | 7408563344 | Busy |
+| 7 | 9391103016 | Busy |
+| 8 | 8962714926 | Resolved; Pay Link |
+| 9 | 8124292330 | No Response |
+| 10 | 7647073910 | Busy |
+| 11 | 8805606531 | Repayment |
+| 12 | 7404940217 | Busy |
+| 13 | 8106673743 | No Response |
+| 14 | 9152177680 | Busy |
+| 15 | 94160766,8088499968 | Rejected |
+| 16 | 8074973074 | Not Available |
+| 17 | 9284897964 | Busy |
+| 18 | 9573588910 | Busy |
+| 19 | 7696321300 | No Answer |
+| 20 | 9739237219 | Resolved |
+| 21 | 7219424126 | No Answer |
+| 22 | 8714317927 | Busy |
+| 23 | 6297228561 | Bank Change |
+| 24 | 9837353768 | Rejected |
+| 25 | 7259776729 | Invalid |
+| 26 | 7264042278 | Busy |
+| 27 | 9600309258 | Not Connected |
+| 28 | 94121407,7995455339 | Rejected |
+| 29 | 7698600327 | Rejected |
+| 30 | 8247569190 | Busy |
+| 31 | 9061892259 | No Response |
+| 32 | 8918347350 | Busy |
+| 33 | 9765881654 | Busy |
+| 34 | 8812833888 | Busy |
+| 35 | 94049868,9848189322 | No Response |
+| 36 | 9490570556 | Other Language |
+| 37 | 9810188065 | Transfer |
+| 38 | 9583442462 | Busy |
+| 39 | 7891670422 | Busy |
+| 40 | 94267908,9891208358 | No Response |
+| 41 | 8123841005 | Busy |
+| 42 | 8777215935 | Busy |
+
+### Expected results
+
+- Total input records: 42.
+- Expected detected mobile numbers: 42.
+- Serial IDs supplied: 5.
+- Missing Serial IDs: 37.
+- All 42 records must remain present.
+- No input sequence number should be used as Serial ID.
+- The five comma-separated Serial ID/mobile pairs must be separated correctly.
+- Call outcomes must go to the correct Call Status field.
+- Additional remarks must be mapped separately.
+- Uncertain mappings must be flagged rather than guessed.
+
+The dataset must be processed as a single bulk paste.
+
+# PART 21 — MANDATORY TESTING
+
+Before deployment, test:
+
+1. Four employee selection.
+2. Correct individual master loading.
+3. Employee name auto-population.
+4. Phone number recognition.
+5. Eight-digit Serial ID recognition.
+6. Serial ID before mobile number.
+7. Comma-separated numbers.
+8. Input row number exclusion.
+9. Missing Serial ID = NA.
+10. Missing mobile number handling.
+11. Busy and other call-status mapping.
+12. All 45 Remarks dropdown values.
+13. All three Category options.
+14. All six Subcategory options.
+15. Shortcut recognition.
+16. Mixed-format bulk input.
+17. Multiple empty columns in pasted Excel data.
+18. Duplicate detection.
+19. Append-only master workbook behaviour.
+20. Preservation of historical records.
+21. Excel formatting preservation.
+22. Correct Excel download.
+23. User isolation.
+24. Switch User functionality.
+25. Free AI fallback behaviour.
+26. Mobile and desktop compatibility.
+
+Run:
+- TypeScript type checking.
+- Production build.
+- Available automated tests.
+- Excel import/export tests.
+- Data parsing tests.
+- Security tests.
+
+Do not declare any test passed unless it was actually executed.
+
+# PART 22 — IMPLEMENTATION AND DEPLOYMENT PLAN
+
+Do not change everything at once.
+
+First inspect the project and produce an audit.
+
+Then implement these phases:
+
+**Phase 1 — Existing application audit**
+- Inspect all source files.
+- Inspect current database.
+- Inspect Excel engine.
+- Inspect current parsing logic.
+- Inspect actual master workbook.
+- Identify bugs.
+
+**Phase 2 — Parsing engine**
+- Flexible bulk paste.
+- Serial ID detection.
+- Mobile number detection.
+- Comma and tab parsing.
+- Input sequence exclusion.
+- Missing Serial ID = NA.
+
+**Phase 3 — AI intelligence**
+- Shortcut dictionary.
+- Contextual remark understanding.
+- Category classification.
+- Subcategory classification.
+- Remarks selection.
+- Call Status mapping.
+- Confidence handling.
+
+**Phase 4 — Four employees**
+- Bhaskar.
+- Mohit.
+- Dishant.
+- Vishal.
+- Separate workspaces.
+- Secure access.
+
+**Phase 5 — Permanent Excel system**
+- Master initialization.
+- Append-only updates.
+- Duplicate detection.
+- Safe synchronization.
+- Backup.
+
+**Phase 6 — Interface**
+- Employee selection.
+- Bulk input.
+- AI processing.
+- Preview.
+- Exception handling.
+- Download.
+
+**Phase 7 — Testing**
+- Full 42-record sample.
+- Dropdown validation.
+- All four accounts.
+- Excel preservation.
+- Security.
+
+**Phase 8 — Deployment**
+- Build the application.
+- Fix all build errors.
+- Test the deployed version.
+- Push only approved changes.
+- Deploy through the existing Cloudflare Pages setup.
+
+Do not deploy incomplete code.
+
+Do not expose customer information in testing or public demos.
+
+# PART 23 — FINAL ACCEPTANCE CRITERIA
+
+The project is complete only when all of the following are working:
+
+1. Four employees can select their names before entering the dashboard.
+2. Each employee has their own permanent master workbook.
+3. Each employee can paste messy bulk calling data.
+4. The AI can understand different input formats.
+5. The agent can detect 8-digit Serial IDs and 10-digit phone numbers separately.
+6. Missing Serial IDs automatically become NA.
+7. Input sequence numbers are never mistaken for Serial IDs.
+8. The agent understands shortcuts and incomplete remarks.
+9. Category, Subcategory and Remarks are selected from the exact approved dropdowns.
+10. Call Status is mapped separately.
+11. All records are arranged under the actual master workbook headers.
+12. Previous records are never accidentally deleted.
+13. Duplicate records are identified.
+14. Only ambiguous records require manual review.
+15. The updated Excel workbook downloads correctly.
+16. All four workspaces remain independent.
+17. The application works without mandatory paid AI APIs.
+18. All critical functionality is tested.
+
+## FINAL INSTRUCTION
+
+Build an actual intelligent operational data-processing agent, not a generic spreadsheet application.
+
+The employee should not need to understand Excel columns, dropdown mappings, abbreviations or data formatting.
+
+They should simply:
+
+SELECT NAME → PASTE RAW BULK DATA → ANALYSE WITH AI → REVIEW EXCEPTIONS → DOWNLOAD UPDATED MASTER EXCEL.
+
+The existing master workbook is the source of truth.
+
+Data accuracy, correct dropdown selection, Serial ID/mobile detection, permanent record preservation, account isolation and zero mandatory paid costs are the highest priorities.
+
+Do not sacrifice functionality for decorative UI.
+
+Do not fabricate missing data.
+
+Do not invent dropdown options.
+
+Do not delete historical records.
+
+Do not claim success without testing.
+
+Complete the existing application properly.

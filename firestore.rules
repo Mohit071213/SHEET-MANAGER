@@ -26,12 +26,35 @@ service cloud.firestore {
       return resource.data;
     }
 
+    function isValidGlobalDefaults(gd) {
+      return gd is map
+        && gd.keys().hasAll([
+          'defaultCategory', 'defaultSubcategory', 'defaultEscalations',
+          'defaultChannels', 'alwaysApplyCategorySubcategory', 'updatedAt'
+        ])
+        && gd.keys().hasOnly([
+          'defaultCategory', 'defaultSubcategory', 'defaultEscalations',
+          'defaultChannels', 'alwaysApplyCategorySubcategory', 'updatedAt'
+        ])
+        && gd.defaultCategory in ['Query', 'Request', 'Complaint']
+        && gd.defaultSubcategory is string && gd.defaultSubcategory.size() >= 1 && gd.defaultSubcategory.size() <= 60
+        && gd.defaultEscalations is string && gd.defaultEscalations.size() >= 1 && gd.defaultEscalations.size() <= 40
+        && gd.defaultChannels is string && gd.defaultChannels.size() >= 1 && gd.defaultChannels.size() <= 40
+        && gd.alwaysApplyCategorySubcategory is bool
+        && gd.updatedAt is string && gd.updatedAt.size() >= 10 && gd.updatedAt.size() <= 40;
+    }
+
     function isValidUserWorkspace(data, userId) {
       return data.keys().hasAll(['ownerId', 'email', 'activeWorkbookId', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['ownerId', 'email', 'activeWorkbookId', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly([
+          'ownerId', 'email', 'activeWorkbookId', 'purgeV2Applied', 'globalDefaults',
+          'createdAt', 'updatedAt'
+        ])
         && data.ownerId is string && data.ownerId == userId && data.ownerId == request.auth.uid
         && data.email is string && data.email.size() >= 3 && data.email.size() <= 200
         && isValidId(data.activeWorkbookId) && data.activeWorkbookId.size() <= 64
+        && (!('purgeV2Applied' in data.keys()) || data.purgeV2Applied is bool)
+        && (!('globalDefaults' in data.keys()) || isValidGlobalDefaults(data.globalDefaults))
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
     }
@@ -143,7 +166,9 @@ service cloud.firestore {
         && incoming().ownerId == existing().ownerId
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
-        && incoming().diff(existing()).affectedKeys().hasOnly(['activeWorkbookId', 'email', 'updatedAt']);
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'activeWorkbookId', 'email', 'globalDefaults', 'purgeV2Applied', 'updatedAt'
+        ]);
       allow delete: if false;
 
       match /workbooks/{workbookId} {
@@ -163,7 +188,7 @@ service cloud.firestore {
             (
               incoming().version == existing().version + 1
               && incoming().diff(existing()).affectedKeys().hasOnly([
-                'addedRecordCount', 'version', 'updatedByDevice', 'updatedAt'
+                'originalRecordCount', 'addedRecordCount', 'version', 'updatedByDevice', 'updatedAt'
               ])
             )
             ||

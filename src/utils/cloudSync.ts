@@ -1,6 +1,7 @@
 import { User } from 'firebase/auth';
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -15,10 +16,21 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { CallRecord, WorkbookMetadata } from '../types/callsheet';
+import {
+  CallRecord,
+  EmployeeId,
+  EMPLOYEES,
+  GlobalEntryDefaults,
+  WorkbookMetadata,
+} from '../types/callsheet';
+import { sanitizeGlobalEntryDefaults } from './globalDefaults';
+import { isExpiredTimestamp } from './retention';
 
-const WORKBOOK_ID = 'master';
 const CHUNK_SIZE = 450_000; // Safely under 1MB Firestore document limit
+
+export function getEmployeeWorkbookId(employeeId: EmployeeId): string {
+  return `${employeeId}_master`;
+}
 
 export interface CloudVersionEntry {
   id: string;
@@ -94,39 +106,325 @@ function tsToIso(val: unknown): string {
   return new Date().toISOString();
 }
 
-export async function ensureUserWorkspace(user: User): Promise<void> {
+async function deleteCloudWorkbookCompletely(
+  userId: string,
+  workbookId: string
+): Promise<void> {
+  const [chunksSnap, recordsSnap, versionsSnap] = await Promise.all([
+    getDocs(
+      query(
+        collection(db, 'users', userId, 'workbooks', workbookId, 'chunks'),
+        where('ownerId', '==', userId)
+      )
+    ),
+    getDocs(
+      query(
+        collection(db, 'users', userId, 'workbooks', workbookId, 'records'),
+        where('ownerId', '==', userId)
+      )
+    ),
+    getDocs(
+      query(
+        collection(db, 'users', userId, 'workbooks', workbookId, 'versions'),
+        where('ownerId', '==', userId)
+      )
+    ),
+  ]);
+
+  const refs = [
+    ...chunksSnap.docs.map((d) => d.ref),
+    ...recordsSnap.docs.map((d) => d.ref),
+    ...versionsSnap.docs.map((d) => d.ref),
+  ];
+
+  for (let i = 0; i < refs.length; i += 400) {
+    const batch = writeBatch(db);
+    refs.slice(i, i + 400).forEach((ref) => batch.delete(ref));
+    await batch.commit();
+  }
+
+  await deleteDoc(doc(db, 'users', userId, 'workbooks', workbookId));
+}
+
+export async function ensureUserWorkspace(
+  user: User,
+  employeeId: EmployeeId,
+  globalDefaults?: GlobalEntryDefaults
+): Promise<{ purgedLegacyCloud: boolean; cloudGlobalDefaults: GlobalEntryDefaults | null }> {
   const userPath = `users/${user.uid}`;
   const userRef = doc(db, 'users', user.uid);
+  const workbookId = getEmployeeWorkbookId(employeeId);
+
+  try {
+    const snap = await getDoc(userRef);
+    const cleanDefaults = globalDefaults
+      ? sanitizeGlobalEntryDefaults(globalDefaults)
+      : undefined;
+
+    if (!snap.exists()) {
+      await setDoc(userRef, {
+        ownerId: user.uid,
+        email: (user.email ?? 'user@callsheet.local').slice(0, 200),
+        activeWorkbookId: workbookId,
+        purgeV2Applied: true,
+        ...(cleanDefaults ? { globalDefaults: cleanDefaults } : {}),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      return { purgedLegacyCloud: false, cloudGlobalDefaults: cleanDefaults ?? null };
+    }
+
+    const existingData = snap.data();
+    let purgedLegacyCloud = false;
+
+    // One-time cloud master reset: wipe pre-existing legacy cloud workbooks so every employee starts fresh
+    if (existingData?.purgeV2Applied !== true) {
+      const legacyIds = new Set<string>([
+        'master',
+        ...EMPLOYEES.map((e) => getEmployeeWorkbookId(e.id)),
+      ]);
+      for (const wbId of legacyIds) {
+        try {
+          const wbSnap = await getDoc(doc(db, 'users', user.uid, 'workbooks', wbId));
+          if (wbSnap.exists()) {
+            await deleteCloudWorkbookCompletely(user.uid, wbId);
+            purgedLegacyCloud = true;
+          }
+        } catch {
+          // ignore missing legacy workbook doc
+        }
+      }
+
+      await setDoc(
+        userRef,
+        {
+          ownerId: user.uid,
+          email: (user.email ?? 'user@callsheet.local').slice(0, 200),
+          activeWorkbookId: workbookId,
+          purgeV2Applied: true,
+          ...(existingData?.globalDefaults
+            ? {
+                globalDefaults: sanitizeGlobalEntryDefaults(
+                  existingData.globalDefaults as Partial<GlobalEntryDefaults>
+                ),
+              }
+            : cleanDefaults
+              ? { globalDefaults: cleanDefaults }
+              : {}),
+          createdAt: existingData.createdAt ?? serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } else if (existingData?.activeWorkbookId !== workbookId) {
+      await setDoc(
+        userRef,
+        {
+          ownerId: user.uid,
+          email: (user.email ?? 'user@callsheet.local').slice(0, 200),
+          activeWorkbookId: workbookId,
+          purgeV2Applied: true,
+          ...(existingData?.globalDefaults
+            ? {
+                globalDefaults: sanitizeGlobalEntryDefaults(
+                  existingData.globalDefaults as Partial<GlobalEntryDefaults>
+                ),
+              }
+            : {}),
+          createdAt: existingData.createdAt ?? serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    }
+
+    const cloudGlobalDefaults = existingData?.globalDefaults
+      ? sanitizeGlobalEntryDefaults(existingData.globalDefaults as Partial<GlobalEntryDefaults>)
+      : null;
+
+    return { purgedLegacyCloud, cloudGlobalDefaults };
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, userPath);
+  }
+}
+
+export async function saveGlobalDefaultsToCloud(
+  user: User,
+  employeeId: EmployeeId,
+  defaults: GlobalEntryDefaults
+): Promise<GlobalEntryDefaults> {
+  const clean = sanitizeGlobalEntryDefaults({
+    ...defaults,
+    updatedAt: new Date().toISOString(),
+  });
+  const userPath = `users/${user.uid}`;
+  const userRef = doc(db, 'users', user.uid);
+  const workbookId = getEmployeeWorkbookId(employeeId);
+
   try {
     const snap = await getDoc(userRef);
     if (!snap.exists()) {
       await setDoc(userRef, {
         ownerId: user.uid,
         email: (user.email ?? 'user@callsheet.local').slice(0, 200),
-        activeWorkbookId: WORKBOOK_ID,
+        activeWorkbookId: workbookId,
+        purgeV2Applied: true,
+        globalDefaults: clean,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+    } else {
+      const existingData = snap.data();
+      await setDoc(
+        userRef,
+        {
+          ownerId: user.uid,
+          email: (user.email ?? 'user@callsheet.local').slice(0, 200),
+          activeWorkbookId: existingData.activeWorkbookId ?? workbookId,
+          purgeV2Applied: true,
+          globalDefaults: clean,
+          createdAt: existingData.createdAt ?? serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
     }
+    return clean;
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, userPath);
   }
 }
 
+export function subscribeCloudUserDefaults(
+  userId: string,
+  onDefaults: (defaults: GlobalEntryDefaults) => void,
+  onError?: (err: Error) => void
+): () => void {
+  const userPath = `users/${userId}`;
+  return onSnapshot(
+    doc(db, 'users', userId),
+    (snap) => {
+      if (!snap.exists()) return;
+      const d = snap.data();
+      if (d?.globalDefaults) {
+        onDefaults(sanitizeGlobalEntryDefaults(d.globalDefaults as Partial<GlobalEntryDefaults>));
+      }
+    },
+    (err) => {
+      try {
+        handleFirestoreError(err, OperationType.GET, userPath);
+      } catch (wrapped) {
+        onError?.(wrapped as Error);
+      }
+    }
+  );
+}
+
+export async function pruneExpiredCloudWorkbookData(
+  user: User,
+  employeeId: EmployeeId,
+  nowMs: number = Date.now()
+): Promise<{ removedRecords: number; removedVersions: number; clearedWorkbook: boolean }> {
+  const workbookId = getEmployeeWorkbookId(employeeId);
+  const wbPath = `users/${user.uid}/workbooks/${workbookId}`;
+  const wbRef = doc(db, 'users', user.uid, 'workbooks', workbookId);
+
+  try {
+    const wbSnap = await getDoc(wbRef);
+    if (!wbSnap.exists()) {
+      return { removedRecords: 0, removedVersions: 0, clearedWorkbook: false };
+    }
+
+    const wbData = wbSnap.data();
+    const recordsSnap = await getDocs(
+      query(
+        collection(db, 'users', user.uid, 'workbooks', workbookId, 'records'),
+        where('ownerId', '==', user.uid)
+      )
+    );
+    const versionsSnap = await getDocs(
+      query(
+        collection(db, 'users', user.uid, 'workbooks', workbookId, 'versions'),
+        where('ownerId', '==', user.uid)
+      )
+    );
+
+    const expiredRecordRefs = recordsSnap.docs
+      .filter((d) => isExpiredTimestamp(tsToIso(d.data().createdAt), nowMs))
+      .map((d) => d.ref);
+    const activeRecords = recordsSnap.docs.filter(
+      (d) => !isExpiredTimestamp(tsToIso(d.data().createdAt), nowMs)
+    );
+
+    const expiredVersionRefs = versionsSnap.docs
+      .filter((d) => isExpiredTimestamp(tsToIso(d.data().createdAt), nowMs))
+      .map((d) => d.ref);
+
+    const wbUpdatedIso = tsToIso(wbData.updatedAt ?? wbData.createdAt);
+    const shouldClearWorkbook =
+      isExpiredTimestamp(wbUpdatedIso, nowMs) && activeRecords.length === 0;
+
+    if (shouldClearWorkbook) {
+      await deleteCloudWorkbookCompletely(user.uid, workbookId);
+      return {
+        removedRecords: recordsSnap.docs.length,
+        removedVersions: versionsSnap.docs.length,
+        clearedWorkbook: true,
+      };
+    }
+
+    const deleteRefs = [...expiredRecordRefs, ...expiredVersionRefs];
+    for (let i = 0; i < deleteRefs.length; i += 400) {
+      const batch = writeBatch(db);
+      deleteRefs.slice(i, i + 400).forEach((ref) => batch.delete(ref));
+      await batch.commit();
+    }
+
+    if (expiredRecordRefs.length > 0) {
+      const remainingMaster = activeRecords.filter((d) => d.data().source === 'master').length;
+      const remainingAdded = activeRecords.filter((d) => d.data().source === 'added').length;
+      const deviceTag = getCurrentDeviceTag();
+
+      await runTransaction(db, async (tx) => {
+        const freshWb = await tx.get(wbRef);
+        if (!freshWb.exists()) return;
+        const currVer = Number(freshWb.data().version ?? 1);
+        tx.update(wbRef, {
+          originalRecordCount: remainingMaster,
+          addedRecordCount: remainingAdded,
+          version: currVer + 1,
+          updatedByDevice: deviceTag.slice(0, 80),
+          updatedAt: serverTimestamp(),
+        });
+      });
+    }
+
+    return {
+      removedRecords: expiredRecordRefs.length,
+      removedVersions: expiredVersionRefs.length,
+      clearedWorkbook: false,
+    };
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, wbPath);
+  }
+}
+
 export async function uploadMasterToCloud(
   user: User,
+  employeeId: EmployeeId,
   metadata: WorkbookMetadata,
   masterBuffer: ArrayBuffer,
   masterRecords: CallRecord[],
   addedRecords: CallRecord[]
 ): Promise<number> {
-  await ensureUserWorkspace(user);
+  await ensureUserWorkspace(user, employeeId);
 
+  const workbookId = getEmployeeWorkbookId(employeeId);
   const deviceTag = getCurrentDeviceTag();
   const base64Template = arrayBufferToBase64(masterBuffer);
   const chunks = chunkString(base64Template, CHUNK_SIZE);
-  const wbPath = `users/${user.uid}/workbooks/${WORKBOOK_ID}`;
-  const wbRef = doc(db, 'users', user.uid, 'workbooks', WORKBOOK_ID);
+  const wbPath = `users/${user.uid}/workbooks/${workbookId}`;
+  const wbRef = doc(db, 'users', user.uid, 'workbooks', workbookId);
 
   try {
     const existingWb = await getDoc(wbRef);
@@ -134,16 +432,15 @@ export async function uploadMasterToCloud(
       ? Number(existingWb.data().version ?? 0) + 1
       : 1;
 
-    // Delete old records & chunks safely before uploading replacement master workbook
     const oldChunksSnap = await getDocs(
       query(
-        collection(db, 'users', user.uid, 'workbooks', WORKBOOK_ID, 'chunks'),
+        collection(db, 'users', user.uid, 'workbooks', workbookId, 'chunks'),
         where('ownerId', '==', user.uid)
       )
     );
     const oldRecordsSnap = await getDocs(
       query(
-        collection(db, 'users', user.uid, 'workbooks', WORKBOOK_ID, 'records'),
+        collection(db, 'users', user.uid, 'workbooks', workbookId, 'records'),
         where('ownerId', '==', user.uid)
       )
     );
@@ -155,7 +452,6 @@ export async function uploadMasterToCloud(
       await batch.commit();
     }
 
-    // Write/Update WorkbookMaster document
     const wbPayload = {
       ownerId: user.uid,
       fileName: metadata.fileName.slice(0, 200),
@@ -169,7 +465,7 @@ export async function uploadMasterToCloud(
       columnWidths:
         metadata.columnWidths.length > 0
           ? metadata.columnWidths.slice(0, 10)
-          : [14, 15, 18, 18, 20, 14, 14, 12, 34, 14],
+          : [14, 15, 18, 18, 28, 14, 14, 12, 42, 14],
       templateChunkCount: chunks.length,
       version: nextVersion,
       updatedByDevice: deviceTag.slice(0, 80),
@@ -180,7 +476,6 @@ export async function uploadMasterToCloud(
 
     await setDoc(wbRef, wbPayload);
 
-    // Upload template chunks
     for (let i = 0; i < chunks.length; i += 10) {
       const batch = writeBatch(db);
       chunks.slice(i, i + 10).forEach((chunkData, offset) => {
@@ -190,13 +485,13 @@ export async function uploadMasterToCloud(
           'users',
           user.uid,
           'workbooks',
-          WORKBOOK_ID,
+          workbookId,
           'chunks',
           `chunk_${idx}`
         );
         batch.set(cRef, {
           ownerId: user.uid,
-          workbookId: WORKBOOK_ID,
+          workbookId,
           index: idx,
           data: chunkData,
           createdAt: serverTimestamp(),
@@ -205,7 +500,6 @@ export async function uploadMasterToCloud(
       await batch.commit();
     }
 
-    // Upload all existing + added records in batches of 400
     const allRows = [...masterRecords, ...addedRecords];
     for (let i = 0; i < allRows.length; i += 400) {
       const batch = writeBatch(db);
@@ -216,13 +510,13 @@ export async function uploadMasterToCloud(
           'users',
           user.uid,
           'workbooks',
-          WORKBOOK_ID,
+          workbookId,
           'records',
           recId
         );
         batch.set(rRef, {
           ownerId: user.uid,
-          workbookId: WORKBOOK_ID,
+          workbookId,
           rowIndex: rec.rowIndex,
           date: rec.date.slice(0, 24),
           serialId: (rec.serialId || 'NA').slice(0, 64),
@@ -245,19 +539,18 @@ export async function uploadMasterToCloud(
       await batch.commit();
     }
 
-    // Record immutable version entry
     const verRef = doc(
       db,
       'users',
       user.uid,
       'workbooks',
-      WORKBOOK_ID,
+      workbookId,
       'versions',
       `v_${nextVersion}_${Date.now()}`
     );
     await setDoc(verRef, {
       ownerId: user.uid,
-      workbookId: WORKBOOK_ID,
+      workbookId,
       version: nextVersion,
       label: `Synced workbook ${metadata.fileName}`.slice(0, 160),
       fileName: metadata.fileName.slice(0, 200),
@@ -275,12 +568,14 @@ export async function uploadMasterToCloud(
 
 export async function appendRecordsToCloudTransaction(
   user: User,
+  employeeId: EmployeeId,
   newRecords: CallRecord[]
 ): Promise<number> {
-  await ensureUserWorkspace(user);
+  await ensureUserWorkspace(user, employeeId);
+  const workbookId = getEmployeeWorkbookId(employeeId);
   const deviceTag = getCurrentDeviceTag();
-  const wbPath = `users/${user.uid}/workbooks/${WORKBOOK_ID}`;
-  const wbRef = doc(db, 'users', user.uid, 'workbooks', WORKBOOK_ID);
+  const wbPath = `users/${user.uid}/workbooks/${workbookId}`;
+  const wbRef = doc(db, 'users', user.uid, 'workbooks', workbookId);
 
   try {
     const nextVersion = await runTransaction(db, async (tx) => {
@@ -306,13 +601,13 @@ export async function appendRecordsToCloudTransaction(
           'users',
           user.uid,
           'workbooks',
-          WORKBOOK_ID,
+          workbookId,
           'records',
           recId
         );
         tx.set(rRef, {
           ownerId: user.uid,
-          workbookId: WORKBOOK_ID,
+          workbookId,
           rowIndex: startRowIndex + idx,
           date: rec.date.slice(0, 24),
           serialId: (rec.serialId || 'NA').slice(0, 64),
@@ -346,19 +641,19 @@ export async function appendRecordsToCloudTransaction(
         'users',
         user.uid,
         'workbooks',
-        WORKBOOK_ID,
+        workbookId,
         'versions',
         `v_${nextVer}_${Date.now()}`
       );
       tx.set(verRef, {
         ownerId: user.uid,
-        workbookId: WORKBOOK_ID,
+        workbookId,
         version: nextVer,
         label: `Added ${newRecords.length} record${newRecords.length > 1 ? 's' : ''} (${deviceTag})`.slice(
           0,
           160
         ),
-        fileName: String(data.fileName ?? 'Master_Call_Sheet.xlsx').slice(0, 200),
+        fileName: String(data.fileName ?? `${employeeId}_master.xlsx`).slice(0, 200),
         totalRecords: originalCount + updatedAddedCount,
         addedCount: newRecords.length,
         deviceTag: deviceTag.slice(0, 80),
@@ -379,17 +674,18 @@ export async function appendRecordsToCloudTransaction(
 
 export async function deleteAddedRecordsFromCloud(
   user: User,
+  employeeId: EmployeeId,
   recordIds: string[]
 ): Promise<number | null> {
   if (recordIds.length === 0) return null;
-  await ensureUserWorkspace(user);
+  await ensureUserWorkspace(user, employeeId);
 
+  const workbookId = getEmployeeWorkbookId(employeeId);
   const deviceTag = getCurrentDeviceTag();
-  const wbPath = `users/${user.uid}/workbooks/${WORKBOOK_ID}`;
-  const wbRef = doc(db, 'users', user.uid, 'workbooks', WORKBOOK_ID);
+  const wbPath = `users/${user.uid}/workbooks/${workbookId}`;
+  const wbRef = doc(db, 'users', user.uid, 'workbooks', workbookId);
 
   try {
-    // If deleting more than 400 rows at once, batch-delete the overflow first
     const overflowCount = Math.max(0, recordIds.length - 400);
     if (overflowCount > 0) {
       const overflowIds = recordIds.slice(0, overflowCount);
@@ -398,7 +694,7 @@ export async function deleteAddedRecordsFromCloud(
         overflowIds.slice(i, i + 400).forEach((rawId) => {
           const recId = sanitizeFirestoreId(rawId, rawId);
           batch.delete(
-            doc(db, 'users', user.uid, 'workbooks', WORKBOOK_ID, 'records', recId)
+            doc(db, 'users', user.uid, 'workbooks', workbookId, 'records', recId)
           );
         });
         await batch.commit();
@@ -426,7 +722,7 @@ export async function deleteAddedRecordsFromCloud(
           'users',
           user.uid,
           'workbooks',
-          WORKBOOK_ID,
+          workbookId,
           'records',
           recId
         );
@@ -445,19 +741,19 @@ export async function deleteAddedRecordsFromCloud(
         'users',
         user.uid,
         'workbooks',
-        WORKBOOK_ID,
+        workbookId,
         'versions',
         `v_${nextVer}_${Date.now()}`
       );
       tx.set(verRef, {
         ownerId: user.uid,
-        workbookId: WORKBOOK_ID,
+        workbookId,
         version: nextVer,
         label: `Removed ${recordIds.length} added record${recordIds.length > 1 ? 's' : ''} (${deviceTag})`.slice(
           0,
           160
         ),
-        fileName: String(data.fileName ?? 'Master_Call_Sheet.xlsx').slice(0, 200),
+        fileName: String(data.fileName ?? `${employeeId}_master.xlsx`).slice(0, 200),
         totalRecords: originalCount + updatedAddedCount,
         addedCount: 0,
         deviceTag: deviceTag.slice(0, 80),
@@ -473,12 +769,16 @@ export async function deleteAddedRecordsFromCloud(
   }
 }
 
-export async function fetchCloudTemplateBuffer(userId: string): Promise<ArrayBuffer | null> {
-  const chunksPath = `users/${userId}/workbooks/${WORKBOOK_ID}/chunks`;
+export async function fetchCloudTemplateBuffer(
+  userId: string,
+  employeeId: EmployeeId
+): Promise<ArrayBuffer | null> {
+  const workbookId = getEmployeeWorkbookId(employeeId);
+  const chunksPath = `users/${userId}/workbooks/${workbookId}/chunks`;
   try {
     const snap = await getDocs(
       query(
-        collection(db, 'users', userId, 'workbooks', WORKBOOK_ID, 'chunks'),
+        collection(db, 'users', userId, 'workbooks', workbookId, 'chunks'),
         where('ownerId', '==', userId),
         orderBy('index', 'asc')
       )
@@ -493,6 +793,7 @@ export async function fetchCloudTemplateBuffer(userId: string): Promise<ArrayBuf
 
 export function subscribeCloudWorkbook(
   userId: string,
+  employeeId: EmployeeId,
   callbacks: {
     onWorkbook: (snap: CloudWorkbookSnapshot | null) => void;
     onRecords: (records: CallRecord[]) => void;
@@ -500,12 +801,13 @@ export function subscribeCloudWorkbook(
     onError: (err: Error) => void;
   }
 ): () => void {
-  const wbPath = `users/${userId}/workbooks/${WORKBOOK_ID}`;
+  const workbookId = getEmployeeWorkbookId(employeeId);
+  const wbPath = `users/${userId}/workbooks/${workbookId}`;
   const recordsPath = `${wbPath}/records`;
   const versionsPath = `${wbPath}/versions`;
 
   const unsubWb = onSnapshot(
-    doc(db, 'users', userId, 'workbooks', WORKBOOK_ID),
+    doc(db, 'users', userId, 'workbooks', workbookId),
     (snap) => {
       if (!snap.exists()) {
         callbacks.onWorkbook(null);
@@ -544,34 +846,38 @@ export function subscribeCloudWorkbook(
 
   const unsubRecords = onSnapshot(
     query(
-      collection(db, 'users', userId, 'workbooks', WORKBOOK_ID, 'records'),
+      collection(db, 'users', userId, 'workbooks', workbookId, 'records'),
       where('ownerId', '==', userId),
       orderBy('rowIndex', 'asc')
     ),
     (snap) => {
-      const rows: CallRecord[] = snap.docs.map((docSnap) => {
-        const d = docSnap.data();
-        return {
-          id: docSnap.id,
-          rowIndex: Number(d.rowIndex),
-          date: String(d.date ?? ''),
-          serialId: String(d.serialId ?? 'NA'),
-          mobileNo: String(d.mobileNo ?? ''),
-          category: String(d.category ?? ''),
-          subcategory: String(d.subcategory ?? ''),
-          status: d.status === 'Unresolved' ? 'Unresolved' : 'Resolved',
-          escalations: String(d.escalations ?? 'Level1'),
-          channels: String(d.channels ?? 'Calls'),
-          remark: String(d.remark ?? ''),
-          names: String(d.names ?? 'Mohit'),
-          source: d.source === 'master' ? 'master' : 'added',
-          createdAt: tsToIso(d.createdAt),
-          addedDateKey: String(d.addedDateKey ?? ''),
-          deviceTag: String(d.deviceTag ?? ''),
-          isDuplicateMobile: Boolean(d.isDuplicateMobile),
-          isDuplicateSerial: Boolean(d.isDuplicateSerial),
-        };
-      });
+      const nowMs = Date.now();
+      const rows: CallRecord[] = snap.docs
+        .map((docSnap) => {
+          const d = docSnap.data();
+          const createdAt = tsToIso(d.createdAt);
+          return {
+            id: docSnap.id,
+            rowIndex: Number(d.rowIndex),
+            date: String(d.date ?? ''),
+            serialId: String(d.serialId ?? 'NA'),
+            mobileNo: String(d.mobileNo ?? ''),
+            category: String(d.category ?? ''),
+            subcategory: String(d.subcategory ?? ''),
+            status: d.status === 'Unresolved' ? ('Unresolved' as const) : ('Resolved' as const),
+            escalations: String(d.escalations ?? 'Level1'),
+            channels: String(d.channels ?? 'Calls'),
+            remark: String(d.remark ?? ''),
+            names: String(d.names ?? employeeId),
+            source: d.source === 'master' ? ('master' as const) : ('added' as const),
+            createdAt,
+            addedDateKey: String(d.addedDateKey ?? ''),
+            deviceTag: String(d.deviceTag ?? ''),
+            isDuplicateMobile: Boolean(d.isDuplicateMobile),
+            isDuplicateSerial: Boolean(d.isDuplicateSerial),
+          };
+        })
+        .filter((row) => !isExpiredTimestamp(row.createdAt, nowMs));
       callbacks.onRecords(rows);
     },
     (err) => {
@@ -585,24 +891,27 @@ export function subscribeCloudWorkbook(
 
   const unsubVersions = onSnapshot(
     query(
-      collection(db, 'users', userId, 'workbooks', WORKBOOK_ID, 'versions'),
+      collection(db, 'users', userId, 'workbooks', workbookId, 'versions'),
       where('ownerId', '==', userId),
       orderBy('version', 'desc')
     ),
     (snap) => {
-      const versions: CloudVersionEntry[] = snap.docs.map((docSnap) => {
-        const d = docSnap.data();
-        return {
-          id: docSnap.id,
-          version: Number(d.version ?? 1),
-          label: String(d.label ?? ''),
-          fileName: String(d.fileName ?? ''),
-          totalRecords: Number(d.totalRecords ?? 0),
-          addedCount: Number(d.addedCount ?? 0),
-          deviceTag: String(d.deviceTag ?? ''),
-          createdAt: tsToIso(d.createdAt),
-        };
-      });
+      const nowMs = Date.now();
+      const versions: CloudVersionEntry[] = snap.docs
+        .map((docSnap) => {
+          const d = docSnap.data();
+          return {
+            id: docSnap.id,
+            version: Number(d.version ?? 1),
+            label: String(d.label ?? ''),
+            fileName: String(d.fileName ?? ''),
+            totalRecords: Number(d.totalRecords ?? 0),
+            addedCount: Number(d.addedCount ?? 0),
+            deviceTag: String(d.deviceTag ?? ''),
+            createdAt: tsToIso(d.createdAt),
+          };
+        })
+        .filter((v) => !isExpiredTimestamp(v.createdAt, nowMs));
       callbacks.onVersions(versions);
     },
     (err) => {

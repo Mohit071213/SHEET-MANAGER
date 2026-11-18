@@ -74,7 +74,7 @@ export const ExportView: React.FC<ExportViewProps> = ({
       <div>
         <h1 className="text-xl font-bold text-slate-900">Download Updated Excel</h1>
         <p className="text-xs text-slate-500">
-          Review total rows, trim trailing entries if needed, or add more records before generating your .xlsx download.
+          Review total rows, trim trailing entries if needed, or add more records before generating your .xlsx download. Saved data auto-expires after 7 days.
         </p>
       </div>
 
@@ -88,8 +88,8 @@ export const ExportView: React.FC<ExportViewProps> = ({
                 {expectedFileName}
               </span>
             </div>
-            <p className="text-xs text-slate-600">
-              Source: {metadata.fileName} · Sheet: {metadata.sheetName}
+            <p className="text-xs text-slate-600 tabular-nums">
+              Source: {metadata.fileName} · Sheet: {metadata.sheetName} · 7-day retention
             </p>
           </div>
 

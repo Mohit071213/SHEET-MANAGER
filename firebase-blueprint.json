@@ -1,13 +1,36 @@
 {
   "entities": {
+    "GlobalEntryDefaults": {
+      "title": "GlobalEntryDefaults",
+      "description": "Shared default Category, Subcategory, Escalations, and Channels applied across all employee workspaces.",
+      "type": "object",
+      "properties": {
+        "defaultCategory": { "type": "string", "enum": ["Query", "Request", "Complaint"] },
+        "defaultSubcategory": { "type": "string", "maxLength": 60 },
+        "defaultEscalations": { "type": "string", "maxLength": 40 },
+        "defaultChannels": { "type": "string", "maxLength": 40 },
+        "alwaysApplyCategorySubcategory": { "type": "boolean" },
+        "updatedAt": { "type": "string", "maxLength": 40 }
+      },
+      "required": [
+        "defaultCategory",
+        "defaultSubcategory",
+        "defaultEscalations",
+        "defaultChannels",
+        "alwaysApplyCategorySubcategory",
+        "updatedAt"
+      ]
+    },
     "UserWorkspace": {
       "title": "UserWorkspace",
-      "description": "Root workspace owner profile isolating private calling workbooks per authenticated user.",
+      "description": "Root workspace owner profile isolating private calling workbooks and shared global entry defaults per authenticated user.",
       "type": "object",
       "properties": {
         "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
         "email": { "type": "string", "maxLength": 200 },
         "activeWorkbookId": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "purgeV2Applied": { "type": "boolean" },
+        "globalDefaults": { "$ref": "#/entities/GlobalEntryDefaults" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },

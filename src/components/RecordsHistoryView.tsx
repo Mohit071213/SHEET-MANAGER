@@ -57,7 +57,7 @@ export const RecordsHistoryView: React.FC<RecordsHistoryViewProps> = ({
         <div>
           <h1 className="text-xl font-bold text-slate-900">Records History</h1>
           <p className="text-xs text-slate-500 tabular-nums">
-            Showing {filtered.length} of {combined.length} total rows in exact spreadsheet order
+            Showing {filtered.length} of {combined.length} total rows in exact spreadsheet order · Auto-deleted after 7 days
           </p>
         </div>
 

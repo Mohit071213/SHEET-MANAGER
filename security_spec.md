@@ -7,6 +7,7 @@
 3. **Immutable Audit & Ownership Fields**: `ownerId`, `workbookId`, and `createdAt` are immutable once created. `createdAt` and `updatedAt` must strictly equal `request.time`.
 4. **Optimistic Concurrency & Bounded Arrays**: `WorkbookMaster.columnWidths` is strictly bounded (`<= 10` elements, numeric). `WorkbookMaster.version` is monotonically positive integer (`>= 1`).
 5. **No Shadow Fields or Oversized Strings**: Every `create` validates exact `hasAll` + `hasOnly` key sets and `.size()` limits on all strings and document IDs (`isValidId`).
+6. **Global Entry Defaults & 7-Day Cleanup Integrity**: `UserWorkspace.globalDefaults` is strictly validated (permitted `defaultCategory` enum, bounded strings for `defaultSubcategory`, `defaultEscalations`, `defaultChannels`, boolean `alwaysApplyCategorySubcategory`). Authenticated owners may delete their own expired (>7 days) records, versions, chunks, and workbooks during automatic retention cleanup.
 
 ## 2. The "Dirty Dozen" Adversarial Payloads
 
