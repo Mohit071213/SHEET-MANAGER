@@ -163,6 +163,130 @@
         "deviceTag",
         "createdAt"
       ]
+    },
+    "BuilderWorkbookDoc": {
+      "title": "BuilderWorkbookDoc",
+      "description": "Custom Universal Excel Builder workbook configuration and ordered column schema stored permanently per owner.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "maxLength": 120 },
+        "industry": { "type": "string", "maxLength": 60 },
+        "description": { "type": "string", "maxLength": 300 },
+        "sheetName": { "type": "string", "maxLength": 31 },
+        "headerRowIndex": { "type": "integer" },
+        "freezeHeader": { "type": "boolean" },
+        "autoFilter": { "type": "boolean" },
+        "duplicateStrategy": { "type": "string", "enum": ["flag", "skip", "allow"] },
+        "archived": { "type": "boolean" },
+        "columns": { "type": "array" },
+        "rowCount": { "type": "integer" },
+        "cloudVersion": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "ownerId",
+        "name",
+        "industry",
+        "description",
+        "sheetName",
+        "headerRowIndex",
+        "freezeHeader",
+        "autoFilter",
+        "duplicateStrategy",
+        "archived",
+        "columns",
+        "rowCount",
+        "cloudVersion",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "BuilderRowDoc": {
+      "title": "BuilderRowDoc",
+      "description": "Custom Universal Excel Builder row record stored under a parent builderWorkbook.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "workbookId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "rowOrder": { "type": "integer" },
+        "values": { "type": "object" },
+        "isDuplicate": { "type": "boolean" },
+        "duplicateFields": { "type": "array" },
+        "validationWarnings": { "type": "array" },
+        "source": { "type": "string", "enum": ["form", "bulk", "import"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "ownerId",
+        "workbookId",
+        "rowOrder",
+        "values",
+        "isDuplicate",
+        "duplicateFields",
+        "validationWarnings",
+        "source",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "BuilderRuleDoc": {
+      "title": "BuilderRuleDoc",
+      "description": "Shortcut automation rule belonging to a Universal Excel Builder workbook.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "workbookId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "maxLength": 100 },
+        "triggerText": { "type": "string", "maxLength": 120 },
+        "matchMode": { "type": "string", "enum": ["contains", "exact", "startsWith", "regex"] },
+        "assignments": { "type": "array" },
+        "priority": { "type": "integer" },
+        "enabled": { "type": "boolean" },
+        "usageCount": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "ownerId",
+        "workbookId",
+        "name",
+        "triggerText",
+        "matchMode",
+        "assignments",
+        "priority",
+        "enabled",
+        "usageCount",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "BuilderTemplateDoc": {
+      "title": "BuilderTemplateDoc",
+      "description": "User-saved custom Excel workbook schema template.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "maxLength": 120 },
+        "industry": { "type": "string", "maxLength": 60 },
+        "description": { "type": "string", "maxLength": 300 },
+        "sheetName": { "type": "string", "maxLength": 31 },
+        "columns": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "ownerId",
+        "name",
+        "industry",
+        "description",
+        "sheetName",
+        "columns",
+        "createdAt",
+        "updatedAt"
+      ]
     }
   },
   "firestore": {
@@ -185,6 +309,22 @@
     "/users/{userId}/workbooks/{workbookId}/versions/{versionId}": {
       "schema": { "$ref": "#/entities/WorkbookVersionDoc" },
       "description": "Version history entries for workbook updates and synced batches."
+    },
+    "/users/{userId}/builderWorkbooks/{workbookId}": {
+      "schema": { "$ref": "#/entities/BuilderWorkbookDoc" },
+      "description": "Permanent Universal Excel Builder custom workbooks owned by userId."
+    },
+    "/users/{userId}/builderWorkbooks/{workbookId}/rows/{rowId}": {
+      "schema": { "$ref": "#/entities/BuilderRowDoc" },
+      "description": "Custom rows belonging to a Universal Excel Builder workbook."
+    },
+    "/users/{userId}/builderWorkbooks/{workbookId}/rules/{ruleId}": {
+      "schema": { "$ref": "#/entities/BuilderRuleDoc" },
+      "description": "Shortcut automation rules belonging to a Universal Excel Builder workbook."
+    },
+    "/users/{userId}/builderTemplates/{templateId}": {
+      "schema": { "$ref": "#/entities/BuilderTemplateDoc" },
+      "description": "User-saved custom templates for Universal Excel Builder."
     }
   }
 }

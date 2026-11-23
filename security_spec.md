@@ -23,3 +23,15 @@
 10. Modifying immutable `ownerId` or `createdAt` during `update` → `PERMISSION_DENIED`
 11. Modifying an existing immutable version history entry `/versions/{versionId}` → `PERMISSION_DENIED`
 12. Cross-user `list` query scraping `/users/{uidA}/workbooks/master/records` as User B → `PERMISSION_DENIED`
+
+---
+
+# Security Specification — Universal Excel Builder Module
+
+## 1. Isolated Collections & Data Invariants
+1. **Strict Owner & Account Isolation**: Builder workbooks (`/users/{userId}/builderWorkbooks/{workbookId}`), rows, rules, and custom templates (`/users/{userId}/builderTemplates/{templateId}`) are strictly scoped to `request.auth != null && request.auth.token.email_verified == true && request.auth.uid == userId && data.ownerId == request.auth.uid`.
+2. **Master Gate Integrity**: Subcollections `rows/{rowId}` and `rules/{ruleId}` verify parent `builderWorkbooks/{workbookId}` ownership via `getAfter(...)`.
+3. **Bounded Schema & Anti-Shadow Keys**: Exact `hasAll` + `hasOnly` key checks, bounded `columns` array (`<= 60`), bounded `values` map (`<= 60` keys), bounded `assignments` (`<= 30`), and `isValidId` path checks.
+4. **Immutable Ownership & Server Timestamps**: `ownerId`, `workbookId`, and `createdAt` remain immutable on updates; `createdAt == request.time` on create and `updatedAt == request.time` on updates.
+5. **Client Formula-Injection Defense**: Exported `.xlsx` and `.csv` string cells neutralize leading `=`, `+`, `-`, `@`, `\t`, `\r` payloads safely.
+

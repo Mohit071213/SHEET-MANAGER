@@ -154,6 +154,105 @@ service cloud.firestore {
         && data.createdAt is timestamp;
     }
 
+    // =========================================================================
+    // UNIVERSAL EXCEL BUILDER VALIDATORS (ISOLATED FROM CALLSHEET MANAGER)
+    // =========================================================================
+
+    function isValidBuilderWorkbook(data, userId) {
+      return data.keys().hasAll([
+          'ownerId', 'name', 'industry', 'description', 'sheetName',
+          'headerRowIndex', 'freezeHeader', 'autoFilter', 'duplicateStrategy',
+          'archived', 'columns', 'rowCount', 'cloudVersion', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'name', 'industry', 'description', 'sheetName',
+          'headerRowIndex', 'freezeHeader', 'autoFilter', 'duplicateStrategy',
+          'archived', 'columns', 'rowCount', 'cloudVersion', 'createdAt', 'updatedAt'
+        ])
+        && data.ownerId is string && data.ownerId == userId && data.ownerId == request.auth.uid
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 120
+        && data.industry is string && data.industry.size() >= 1 && data.industry.size() <= 60
+        && data.description is string && data.description.size() <= 300
+        && data.sheetName is string && data.sheetName.size() >= 1 && data.sheetName.size() <= 31
+        && data.headerRowIndex is int && data.headerRowIndex >= 1 && data.headerRowIndex <= 20
+        && data.freezeHeader is bool
+        && data.autoFilter is bool
+        && data.duplicateStrategy in ['flag', 'skip', 'allow']
+        && data.archived is bool
+        && data.columns is list && data.columns.size() <= 60
+        && (data.columns.size() == 0 || data.columns[0] is map)
+        && data.rowCount is int && data.rowCount >= 0 && data.rowCount <= 500000
+        && data.cloudVersion is int && data.cloudVersion >= 1
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidBuilderRow(data, userId, workbookId) {
+      return data.keys().hasAll([
+          'ownerId', 'workbookId', 'rowOrder', 'values', 'isDuplicate',
+          'duplicateFields', 'validationWarnings', 'source', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'workbookId', 'rowOrder', 'values', 'isDuplicate',
+          'duplicateFields', 'validationWarnings', 'source', 'createdAt', 'updatedAt'
+        ])
+        && data.ownerId is string && data.ownerId == userId && data.ownerId == request.auth.uid
+        && data.workbookId is string && data.workbookId == workbookId
+        && data.rowOrder is int && data.rowOrder >= 1 && data.rowOrder <= 500000
+        && data.values is map && data.values.keys().size() <= 60
+        && data.isDuplicate is bool
+        && data.duplicateFields is list && data.duplicateFields.size() <= 60
+        && (data.duplicateFields.size() == 0 || data.duplicateFields[0] is string)
+        && data.validationWarnings is list && data.validationWarnings.size() <= 60
+        && (data.validationWarnings.size() == 0 || data.validationWarnings[0] is string)
+        && data.source in ['form', 'bulk', 'import']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidBuilderRule(data, userId, workbookId) {
+      return data.keys().hasAll([
+          'ownerId', 'workbookId', 'name', 'triggerText', 'matchMode',
+          'assignments', 'priority', 'enabled', 'usageCount', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'workbookId', 'name', 'triggerText', 'matchMode',
+          'assignments', 'priority', 'enabled', 'usageCount', 'createdAt', 'updatedAt'
+        ])
+        && data.ownerId is string && data.ownerId == userId && data.ownerId == request.auth.uid
+        && data.workbookId is string && data.workbookId == workbookId
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 100
+        && data.triggerText is string && data.triggerText.size() >= 1 && data.triggerText.size() <= 120
+        && data.matchMode in ['contains', 'exact', 'startsWith', 'regex']
+        && data.assignments is list && data.assignments.size() <= 30
+        && (data.assignments.size() == 0 || data.assignments[0] is map)
+        && data.priority is int && data.priority >= 0 && data.priority <= 1000
+        && data.enabled is bool
+        && data.usageCount is int && data.usageCount >= 0
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidBuilderTemplate(data, userId) {
+      return data.keys().hasAll([
+          'ownerId', 'name', 'industry', 'description', 'sheetName',
+          'columns', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'name', 'industry', 'description', 'sheetName',
+          'columns', 'createdAt', 'updatedAt'
+        ])
+        && data.ownerId is string && data.ownerId == userId && data.ownerId == request.auth.uid
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 120
+        && data.industry is string && data.industry.size() >= 1 && data.industry.size() <= 60
+        && data.description is string && data.description.size() <= 300
+        && data.sheetName is string && data.sheetName.size() >= 1 && data.sheetName.size() <= 31
+        && data.columns is list && data.columns.size() <= 60
+        && (data.columns.size() == 0 || data.columns[0] is map)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
     match /users/{userId} {
       allow get: if isOwner(userId) && isValidId(userId);
       allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
@@ -236,6 +335,90 @@ service cloud.firestore {
           allow update: if false;
           allow delete: if isOwner(userId) && isValidId(workbookId) && isValidId(versionId);
         }
+      }
+
+      // Isolated Universal Excel Builder Collections
+      match /builderWorkbooks/{workbookId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(workbookId);
+        allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+        allow create: if isOwner(userId) && isValidId(userId) && isValidId(workbookId)
+          && isValidBuilderWorkbook(incoming(), userId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isOwner(userId) && isValidId(userId) && isValidId(workbookId)
+          && isValidBuilderWorkbook(incoming(), userId)
+          && incoming().ownerId == existing().ownerId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().cloudVersion >= existing().cloudVersion + 1
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'name', 'industry', 'description', 'sheetName', 'headerRowIndex',
+            'freezeHeader', 'autoFilter', 'duplicateStrategy', 'archived',
+            'columns', 'rowCount', 'cloudVersion', 'updatedAt'
+          ]);
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(workbookId);
+
+        match /rows/{rowId} {
+          allow get: if isOwner(userId) && isValidId(workbookId) && isValidId(rowId);
+          allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+          allow create: if isOwner(userId) && isValidId(workbookId) && isValidId(rowId)
+            && getAfter(/databases/$(database)/documents/users/$(userId)/builderWorkbooks/$(workbookId)).data.ownerId == request.auth.uid
+            && isValidBuilderRow(incoming(), userId, workbookId)
+            && incoming().createdAt == request.time
+            && incoming().updatedAt == request.time;
+          allow update: if isOwner(userId) && isValidId(workbookId) && isValidId(rowId)
+            && getAfter(/databases/$(database)/documents/users/$(userId)/builderWorkbooks/$(workbookId)).data.ownerId == request.auth.uid
+            && isValidBuilderRow(incoming(), userId, workbookId)
+            && incoming().ownerId == existing().ownerId
+            && incoming().workbookId == existing().workbookId
+            && incoming().createdAt == existing().createdAt
+            && incoming().updatedAt == request.time
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'rowOrder', 'values', 'isDuplicate', 'duplicateFields',
+              'validationWarnings', 'source', 'updatedAt'
+            ]);
+          allow delete: if isOwner(userId) && isValidId(workbookId) && isValidId(rowId);
+        }
+
+        match /rules/{ruleId} {
+          allow get: if isOwner(userId) && isValidId(workbookId) && isValidId(ruleId);
+          allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+          allow create: if isOwner(userId) && isValidId(workbookId) && isValidId(ruleId)
+            && getAfter(/databases/$(database)/documents/users/$(userId)/builderWorkbooks/$(workbookId)).data.ownerId == request.auth.uid
+            && isValidBuilderRule(incoming(), userId, workbookId)
+            && incoming().createdAt == request.time
+            && incoming().updatedAt == request.time;
+          allow update: if isOwner(userId) && isValidId(workbookId) && isValidId(ruleId)
+            && getAfter(/databases/$(database)/documents/users/$(userId)/builderWorkbooks/$(workbookId)).data.ownerId == request.auth.uid
+            && isValidBuilderRule(incoming(), userId, workbookId)
+            && incoming().ownerId == existing().ownerId
+            && incoming().workbookId == existing().workbookId
+            && incoming().createdAt == existing().createdAt
+            && incoming().updatedAt == request.time
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'name', 'triggerText', 'matchMode', 'assignments',
+              'priority', 'enabled', 'usageCount', 'updatedAt'
+            ]);
+          allow delete: if isOwner(userId) && isValidId(workbookId) && isValidId(ruleId);
+        }
+      }
+
+      match /builderTemplates/{templateId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidId(templateId);
+        allow list: if isOwner(userId) && resource.data.ownerId == request.auth.uid;
+        allow create: if isOwner(userId) && isValidId(userId) && isValidId(templateId)
+          && isValidBuilderTemplate(incoming(), userId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isOwner(userId) && isValidId(userId) && isValidId(templateId)
+          && isValidBuilderTemplate(incoming(), userId)
+          && incoming().ownerId == existing().ownerId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'name', 'industry', 'description', 'sheetName', 'columns', 'updatedAt'
+          ]);
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidId(templateId);
       }
     }
   }

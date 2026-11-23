@@ -11,6 +11,7 @@ import {
   PlusCircle,
   RefreshCw,
   Settings,
+  TableProperties,
   Users,
 } from 'lucide-react';
 import { onAuthStateChanged, signInWithPopup, signOut, User } from 'firebase/auth';
@@ -91,6 +92,8 @@ import { CloudSyncPanel } from './components/CloudSyncPanel';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { useOnlineStatus } from './hooks/useOnlineStatus';
+import { ENABLE_UNIVERSAL_EXCEL_BUILDER } from './modules/universalExcelBuilder/config';
+import { UniversalExcelBuilderApp } from './modules/universalExcelBuilder/UniversalExcelBuilderApp';
 
 const MODE_STORAGE_KEY = 'callsheet_operating_mode';
 
@@ -140,6 +143,7 @@ export default function App() {
     [activeEmployee]
   );
 
+  const [activeModule, setActiveModule] = useState<'callsheet' | 'builder'>('callsheet');
   const [section, setSection] = useState<AppSection>('dashboard');
   const [stagedBulkText, setStagedBulkText] = useState<string | null>(null);
   const [isHydrating, setIsHydrating] = useState(true);
@@ -567,6 +571,16 @@ export default function App() {
         onGoogleSignIn={handleGoogleSignIn}
         onSignOut={handleSignOut}
         previews={employeePreviews}
+      />
+    );
+  }
+
+  if (ENABLE_UNIVERSAL_EXCEL_BUILDER && activeModule === 'builder') {
+    return (
+      <UniversalExcelBuilderApp
+        user={user}
+        ownerId={user?.uid}
+        onExitBuilder={() => setActiveModule('callsheet')}
       />
     );
   }
@@ -1302,6 +1316,18 @@ export default function App() {
               </button>
             );
           })}
+          {ENABLE_UNIVERSAL_EXCEL_BUILDER && (
+            <div className="pt-3 mt-3 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setActiveModule('builder')}
+                className="flex min-h-[44px] w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900 whitespace-nowrap"
+              >
+                <TableProperties className="h-4 w-4 shrink-0 text-[#107C41]" />
+                <span>Excel Builder</span>
+              </button>
+            </div>
+          )}
         </nav>
 
         <div className="border-t border-slate-200 p-4 space-y-3">
@@ -1370,6 +1396,18 @@ export default function App() {
                   <AlertCircle className="h-3.5 w-3.5 text-amber-600" />
                 )}
                 <span className="hidden sm:inline">{syncStatus}</span>
+              </button>
+            )}
+
+            {ENABLE_UNIVERSAL_EXCEL_BUILDER && (
+              <button
+                type="button"
+                onClick={() => setActiveModule('builder')}
+                aria-label="Open Universal Excel Builder"
+                className="lg:hidden inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-slate-200 bg-[#F8FAFC] px-2.5 py-1 text-xs font-semibold text-slate-800 hover:bg-slate-100 whitespace-nowrap shrink-0"
+              >
+                <TableProperties className="h-3.5 w-3.5 text-[#107C41]" />
+                <span>Builder</span>
               </button>
             )}
 
