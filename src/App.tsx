@@ -871,6 +871,76 @@ export default function App() {
     );
   };
 
+  const handleAppendImportedMasterRecords = async (newRecords: CallRecord[]) => {
+    if (newRecords.length === 0) return;
+    if (metadata && masterBuffer) {
+      await handleCommitRecords(newRecords);
+      return;
+    }
+
+    // No master workbook loaded yet: create blank 10-column master workbook and attach imported rows
+    const blank = await createBlankMasterWorkbook(activeEmployee);
+    const initializedAdded = newRecords.map((rec, idx) => ({
+      ...rec,
+      rowIndex: blank.metadata.headerRowIndex + idx + 1,
+    }));
+    const updatedCategories = { ...blank.metadata.extractedCategories };
+    for (const r of initializedAdded) {
+      if (r.category) {
+        const list = new Set(updatedCategories[r.category] ?? []);
+        if (r.subcategory) list.add(r.subcategory);
+        updatedCategories[r.category] = Array.from(list).sort((a, b) => a.localeCompare(b));
+      }
+    }
+    const updatedMeta: WorkbookMetadata = {
+      ...blank.metadata,
+      extractedCategories: updatedCategories,
+      lastUpdatedAt: new Date().toISOString(),
+    };
+
+    setMetadata(updatedMeta);
+    setMasterBuffer(blank.masterBuffer);
+    setMasterRecords([]);
+    setAddedRecords(initializedAdded);
+
+    await persistWorkspace(empId, {
+      metadata: updatedMeta,
+      masterBuffer: blank.masterBuffer,
+      backupMetadata,
+      backupBuffer,
+      masterRecords: [],
+      addedRecords: initializedAdded,
+    });
+
+    if (mode === 'cloud' && user && isOnline) {
+      setSyncStatus('Syncing');
+      isCloudUploadingRef.current = true;
+      try {
+        const ver = await uploadMasterToCloud(
+          user,
+          empId,
+          updatedMeta,
+          blank.masterBuffer,
+          [],
+          initializedAdded
+        );
+        cloudWorkbookExistsRef.current = true;
+        lastFetchedTemplateSizeRef.current = blank.masterBuffer.byteLength;
+        setCloudVersion(ver);
+        setSyncStatus('Synced');
+      } finally {
+        isCloudUploadingRef.current = false;
+      }
+    }
+
+    showToast(
+      'success',
+      `Created ${activeEmployee}'s Master Sheet and appended ${initializedAdded.length} imported record${
+        initializedAdded.length > 1 ? 's' : ''
+      }.`
+    );
+  };
+
   const handleDeleteAddedRecords = async (recordIds: string[]) => {
     if (!metadata || !masterBuffer || recordIds.length === 0) return;
     const removeSet = new Set(recordIds);
@@ -1526,12 +1596,17 @@ export default function App() {
 
               {section === 'master' && (
                 <MasterExcelView
+                  employeeName={activeEmployee}
                   metadata={metadata}
                   addedCount={addedRecords.length}
+                  existingRecords={allRecords}
+                  shortcutRules={shortcutRules}
+                  globalDefaults={globalDefaults}
                   backupMetadata={backupMetadata}
                   hasBackupBuffer={Boolean(backupBuffer)}
                   onUploadFile={handleUploadFile}
                   onCreateBlankTemplate={handleCreateBlankTemplate}
+                  onAppendImportedRecords={handleAppendImportedMasterRecords}
                   onDownloadBackupExcel={handleDownloadBackupExcel}
                   onRestoreBackup={handleRestoreBackup}
                   onTrimMasterToCount={handleTrimMasterToCount}

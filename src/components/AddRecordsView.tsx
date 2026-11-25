@@ -47,6 +47,7 @@ import {
   summarizeProcessingResults,
 } from '../utils/statusMapper';
 import { GlobalEntryDefaultsCard } from './GlobalEntryDefaultsCard';
+import { CallsheetFileImportPanel } from './CallsheetFileImportPanel';
 
 interface AddRecordsViewProps {
   employeeName: EmployeeName;
@@ -64,7 +65,7 @@ interface AddRecordsViewProps {
   onConsumedInitialBulkText?: () => void;
 }
 
-type EntryMode = 'single' | 'smart' | 'bulk';
+type EntryMode = 'single' | 'smart' | 'bulk' | 'import';
 
 export const AddRecordsView: React.FC<AddRecordsViewProps> = ({
   employeeName,
@@ -539,7 +540,7 @@ export const AddRecordsView: React.FC<AddRecordsViewProps> = ({
           </p>
         </div>
 
-        <div className="grid grid-cols-3 gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1 sm:w-auto">
+        <div className="grid grid-cols-2 gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1 sm:grid-cols-4 sm:w-auto">
           <button
             type="button"
             onClick={() => {
@@ -553,6 +554,20 @@ export const AddRecordsView: React.FC<AddRecordsViewProps> = ({
             }`}
           >
             Bulk Paste
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setEntryMode('import');
+              setFormError(null);
+            }}
+            className={`min-h-[40px] rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap ${
+              entryMode === 'import'
+                ? 'bg-white text-slate-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            File Import
           </button>
           <button
             type="button"
@@ -1659,6 +1674,27 @@ export const AddRecordsView: React.FC<AddRecordsViewProps> = ({
             </div>
           )}
         </div>
+      )}
+
+      {/* MODE 4: FILE IMPORT (.xlsx / .csv) */}
+      {entryMode === 'import' && (
+        <CallsheetFileImportPanel
+          title="Import Sheet from PC or Phone (.xlsx / .csv)"
+          subtitle={`Choose an Excel or CSV file, review auto-mapped columns, apply ${employeeName}'s shortcuts & Global Defaults, and append rows directly into "${metadata.fileName}".`}
+          employeeName={employeeName}
+          metadata={metadata}
+          existingRecords={existingRecords}
+          shortcutRules={shortcutRules}
+          globalDefaults={globalDefaults}
+          onAppendRecords={async (finalRecords) => {
+            await onCommitRecords(finalRecords);
+            setSubmitFeedback(
+              `Appended ${finalRecords.length} imported row${
+                finalRecords.length === 1 ? '' : 's'
+              } to ${employeeName}'s sheet.`
+            );
+          }}
+        />
       )}
     </div>
   );

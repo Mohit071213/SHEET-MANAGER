@@ -295,21 +295,47 @@ export async function parseUploadedSpreadsheetFile(
   return { fileName: file.name, sheets };
 }
 
+export type BuilderExportFormat = 'xlsx' | 'csv' | 'json';
+
+export interface BuilderExportOptions {
+  fileName?: string;
+  sheetName?: string;
+  headerOverrides?: Record<string, string>;
+}
+
+export function sanitizeDownloadFileBase(
+  raw: string,
+  fallback = 'Workbook'
+): string {
+  const withoutExt = raw.trim().replace(/\.(xlsx|csv|json)$/i, '');
+  const cleaned = withoutExt
+    .replace(/[<>:"/\\|?*\x00-\x1f]+/g, '_')
+    .replace(/\s+/g, ' ')
+    .replace(/^[._\s]+|[._\s]+$/g, '');
+  return cleaned.slice(0, 120) || fallback;
+}
+
 export async function exportWorkbookToXlsxBlob(
   workbook: BuilderWorkbook,
-  records: BuilderRecord[]
-): Promise<{ blob: Blob; fileName: string }> {
+  records: BuilderRecord[],
+  options?: BuilderExportOptions
+): Promise<{ blob: Blob; fileName: string; sheetName: string }> {
   const orderedCols = [...workbook.columns].sort((a, b) => a.order - b.order);
   const excelWb = new ExcelJS.Workbook();
   excelWb.creator = 'Universal Excel Builder';
   excelWb.created = new Date();
 
-  const sheetName = sanitizeSheetName(workbook.sheetName);
+  const sheetName = sanitizeSheetName(options?.sheetName ?? workbook.sheetName);
   const ws = excelWb.addWorksheet(sheetName, {
     views: workbook.freezeHeader
       ? [{ state: 'frozen', ySplit: workbook.headerRowIndex }]
       : [],
   });
+
+  const getHeaderLabel = (col: BuilderColumn): string => {
+    const override = options?.headerOverrides?.[col.id]?.trim();
+    return override || col.label;
+  };
 
   const headerRowNum = Math.max(1, workbook.headerRowIndex);
   const headerRow = ws.getRow(headerRowNum);
@@ -317,7 +343,8 @@ export async function exportWorkbookToXlsxBlob(
   orderedCols.forEach((col, idx) => {
     const colNumber = idx + 1;
     const excelCol = ws.getColumn(colNumber);
-    let maxLen = col.label.length + 4;
+    const label = getHeaderLabel(col);
+    let maxLen = label.length + 4;
     for (const rec of records.slice(0, 300)) {
       const len = String(rec.values[col.id] ?? '').length + 3;
       if (len > maxLen) maxLen = len;
@@ -325,7 +352,7 @@ export async function exportWorkbookToXlsxBlob(
     excelCol.width = Math.min(55, Math.max(col.width || 14, maxLen));
 
     const cell = headerRow.getCell(colNumber);
-    cell.value = sanitizeSpreadsheetFormulaValue(col.label, 'text');
+    cell.value = sanitizeSpreadsheetFormulaValue(label, 'text');
     cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
     cell.fill = {
       type: 'pattern',
@@ -375,15 +402,16 @@ export async function exportWorkbookToXlsxBlob(
   // Native Excel dropdown Data Validation on Dropdown & Boolean columns
   const validationLastRow = Math.max(headerRowNum + records.length + 200, headerRowNum + 200);
   orderedCols.forEach((col, colIdx) => {
-    const options =
+    const optionsList =
       col.type === 'boolean'
         ? ['Yes', 'No']
         : col.type === 'dropdown'
           ? col.dropdownOptions
           : [];
-    if (options.length === 0) return;
+    if (optionsList.length === 0) return;
 
-    const joined = options.map((o) => o.replace(/"/g, '')).join(',');
+    const label = getHeaderLabel(col);
+    const joined = optionsList.map((o) => o.replace(/"/g, '')).join(',');
     if (joined.length <= 240) {
       const formula = `"${joined}"`;
       for (let r = headerRowNum + 1; r <= validationLastRow; r++) {
@@ -392,7 +420,7 @@ export async function exportWorkbookToXlsxBlob(
           allowBlank: !col.required,
           formulae: [formula],
           showErrorMessage: true,
-          errorTitle: `Invalid ${col.label}`,
+          errorTitle: `Invalid ${label}`,
           error: `Choose one of: ${joined}`,
         };
       }
@@ -400,12 +428,16 @@ export async function exportWorkbookToXlsxBlob(
   });
 
   const buffer = await excelWb.xlsx.writeBuffer();
-  const safeBase = workbook.name.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'Workbook';
+  const defaultBase =
+    workbook.name.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'Workbook';
+  const safeBase = options?.fileName?.trim()
+    ? sanitizeDownloadFileBase(options.fileName, defaultBase)
+    : defaultBase;
   const fileName = `${safeBase}.xlsx`;
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
-  return { blob, fileName };
+  return { blob, fileName, sheetName };
 }
 
 function escapeCsvCell(val: string | number | boolean): string {
@@ -418,11 +450,15 @@ function escapeCsvCell(val: string | number | boolean): string {
 
 export function exportWorkbookToCsvBlob(
   workbook: BuilderWorkbook,
-  records: BuilderRecord[]
+  records: BuilderRecord[],
+  options?: BuilderExportOptions
 ): { blob: Blob; fileName: string } {
   const orderedCols = [...workbook.columns].sort((a, b) => a.order - b.order);
   const headerLine = orderedCols
-    .map((c) => escapeCsvCell(sanitizeSpreadsheetFormulaValue(c.label, 'text')))
+    .map((c) => {
+      const label = options?.headerOverrides?.[c.id]?.trim() || c.label;
+      return escapeCsvCell(sanitizeSpreadsheetFormulaValue(label, 'text'));
+    })
     .join(',');
 
   const dataLines = records.map((rec) =>
@@ -438,9 +474,50 @@ export function exportWorkbookToCsvBlob(
   );
 
   const csvContent = '\uFEFF' + [headerLine, ...dataLines].join('\r\n');
-  const safeBase = workbook.name.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'Workbook';
+  const defaultBase =
+    workbook.name.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'Workbook';
+  const safeBase = options?.fileName?.trim()
+    ? sanitizeDownloadFileBase(options.fileName, defaultBase)
+    : defaultBase;
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   return { blob, fileName: `${safeBase}.csv` };
+}
+
+export function exportWorkbookToJsonBlob(
+  workbook: BuilderWorkbook,
+  records: BuilderRecord[],
+  rules: unknown[],
+  options?: BuilderExportOptions
+): { blob: Blob; fileName: string } {
+  const exportedWorkbook: BuilderWorkbook = {
+    ...workbook,
+    sheetName: sanitizeSheetName(options?.sheetName ?? workbook.sheetName),
+    columns: workbook.columns.map((col) => ({
+      ...col,
+      label: options?.headerOverrides?.[col.id]?.trim() || col.label,
+    })),
+  };
+  const blob = new Blob(
+    [
+      JSON.stringify(
+        {
+          module: 'Universal Excel Builder',
+          exportedAt: new Date().toISOString(),
+          workbook: exportedWorkbook,
+          rules,
+          records,
+        },
+        null,
+        2
+      ),
+    ],
+    { type: 'application/json' }
+  );
+  const defaultBase = `${workbook.name.replace(/[^a-zA-Z0-9_-]+/g, '_') || 'Workbook'}_Backup`;
+  const safeBase = options?.fileName?.trim()
+    ? sanitizeDownloadFileBase(options.fileName, defaultBase)
+    : defaultBase;
+  return { blob, fileName: `${safeBase}.json` };
 }
 
 export function triggerBuilderBlobDownload(blob: Blob, fileName: string): void {

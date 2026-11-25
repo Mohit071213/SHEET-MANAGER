@@ -9,27 +9,45 @@ import {
   ShieldCheck,
   Upload,
 } from 'lucide-react';
-import { EXACT_EXCEL_HEADERS, WorkbookMetadata } from '../types/callsheet';
+import {
+  CallRecord,
+  EmployeeName,
+  EXACT_EXCEL_HEADERS,
+  GlobalEntryDefaults,
+  ShortcutRule,
+  WorkbookMetadata,
+} from '../types/callsheet';
+import { CallsheetFileImportPanel } from './CallsheetFileImportPanel';
 
 interface MasterExcelViewProps {
+  employeeName: EmployeeName;
   metadata: WorkbookMetadata | null;
   addedCount: number;
+  existingRecords: CallRecord[];
+  shortcutRules: ShortcutRule[];
+  globalDefaults: GlobalEntryDefaults;
   backupMetadata: WorkbookMetadata | null;
   hasBackupBuffer: boolean;
   onUploadFile: (file: File) => Promise<void>;
   onCreateBlankTemplate: () => Promise<void>;
+  onAppendImportedRecords: (records: CallRecord[]) => Promise<void>;
   onDownloadBackupExcel: () => void;
   onRestoreBackup: () => Promise<void>;
   onTrimMasterToCount?: (keepCount: number) => Promise<void>;
 }
 
 export const MasterExcelView: React.FC<MasterExcelViewProps> = ({
+  employeeName,
   metadata,
   addedCount,
+  existingRecords,
+  shortcutRules,
+  globalDefaults,
   backupMetadata,
   hasBackupBuffer,
   onUploadFile,
   onCreateBlankTemplate,
+  onAppendImportedRecords,
   onDownloadBackupExcel,
   onRestoreBackup,
   onTrimMasterToCount,
@@ -139,6 +157,22 @@ export const MasterExcelView: React.FC<MasterExcelViewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Import & Append Pre-Existing Sheet from PC / Phone */}
+      <CallsheetFileImportPanel
+        title="Append Pre-Existing Sheet from PC or Phone (.xlsx / .csv)"
+        subtitle={
+          metadata
+            ? `Import rows from an existing Excel or CSV file, preview auto-mapped columns & duplicates, and append directly into "${metadata.fileName}" without overwriting existing records.`
+            : `Import rows from an existing Excel or CSV file to automatically initialize ${employeeName}'s 10-column sheet and append the imported rows.`
+        }
+        employeeName={employeeName}
+        metadata={metadata}
+        existingRecords={existingRecords}
+        shortcutRules={shortcutRules}
+        globalDefaults={globalDefaults}
+        onAppendRecords={onAppendImportedRecords}
+      />
 
       {/* Loaded Workbook Inspector */}
       {metadata && (

@@ -1,10 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
   Play,
   Sparkles,
   Trash2,
+  Upload,
 } from 'lucide-react';
 import {
   parseUniversalBulkInput,
@@ -28,6 +29,7 @@ interface BulkEntryViewProps {
     matchedRuleIds: string[]
   ) => Promise<{ addedCount: number; skippedDuplicates: number }>;
   onGoToRules: () => void;
+  onImportFile?: (file: File) => void;
 }
 
 export const BulkEntryView: React.FC<BulkEntryViewProps> = ({
@@ -36,7 +38,9 @@ export const BulkEntryView: React.FC<BulkEntryViewProps> = ({
   rules,
   onCommitBulkRows,
   onGoToRules,
+  onImportFile,
 }) => {
+  const bulkFileInputRef = useRef<HTMLInputElement>(null);
   const orderedCols = useMemo(
     () => [...workbook.columns].sort((a, b) => a.order - b.order),
     [workbook.columns]
@@ -134,13 +138,38 @@ export const BulkEntryView: React.FC<BulkEntryViewProps> = ({
 
   if (orderedCols.length === 0) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white px-6 py-12 text-center">
-        <p className="text-sm font-semibold text-slate-900">
-          Add columns before using Bulk Entry
-        </p>
-        <p className="mt-1 text-xs text-slate-500">
-          Configure at least one column so the parser knows how to structure your pasted lines.
-        </p>
+      <div className="rounded-xl border border-slate-200 bg-white px-6 py-12 text-center space-y-4">
+        <div>
+          <p className="text-sm font-semibold text-slate-900">
+            Add columns before using Bulk Entry
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Configure at least one column or import an .xlsx / .csv file to auto-extract headers, cell types, and rows.
+          </p>
+        </div>
+        {onImportFile && (
+          <div>
+            <input
+              ref={bulkFileInputRef}
+              type="file"
+              accept=".xlsx,.csv,.xls"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) onImportFile(file);
+                e.target.value = '';
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => bulkFileInputRef.current?.click()}
+              className="inline-flex min-h-[40px] items-center gap-2 rounded-lg bg-[#107C41] px-4 py-2 text-xs font-semibold text-white hover:bg-[#0B5E31] whitespace-nowrap"
+            >
+              <Upload className="h-4 w-4" />
+              <span>Import .xlsx / .csv File</span>
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -166,7 +195,30 @@ export const BulkEntryView: React.FC<BulkEntryViewProps> = ({
               Paste raw multi-line notes, CSV/TSV rows, IDs, phones, emails, dates, or amounts. Active shortcut rules ({rules.filter((r) => r.enabled).length}) run automatically.
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {onImportFile && (
+              <>
+                <input
+                  ref={bulkFileInputRef}
+                  type="file"
+                  accept=".xlsx,.csv,.xls"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) onImportFile(file);
+                    e.target.value = '';
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => bulkFileInputRef.current?.click()}
+                  className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap"
+                >
+                  <Upload className="h-3.5 w-3.5 text-[#107C41]" />
+                  <span>Import .xlsx / .csv</span>
+                </button>
+              </>
+            )}
             <button
               type="button"
               onClick={handleLoadSample}

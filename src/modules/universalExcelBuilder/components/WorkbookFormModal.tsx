@@ -1,8 +1,19 @@
-import React, { useEffect, useState } from 'react';
-import { X } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Upload, X } from 'lucide-react';
 import { BUILDER_INDUSTRIES, BuilderIndustry } from '../config';
-import { BuilderDuplicateStrategy, BuilderWorkbook } from '../types';
-import { sanitizeSheetName } from '../storage';
+import {
+  buildDetectedColumnsFromMatrix,
+  ParsedSpreadsheetFile,
+  parseUploadedSpreadsheetFile,
+} from '../excelIOEngine';
+import { createUniqueBuilderId, sanitizeSheetName } from '../storage';
+import {
+  BuilderCellValue,
+  BuilderColumn,
+  BuilderDuplicateStrategy,
+  BuilderWorkbook,
+} from '../types';
+import { normalizeCellValue } from '../validationEngine';
 
 export interface WorkbookFormValues {
   name: string;
@@ -14,6 +25,8 @@ export interface WorkbookFormValues {
   autoFilter: boolean;
   duplicateStrategy: BuilderDuplicateStrategy;
   includeStarterColumns: boolean;
+  importedColumns?: BuilderColumn[];
+  importedRows?: Array<Record<string, BuilderCellValue>>;
 }
 
 interface WorkbookFormModalProps {
@@ -50,6 +63,18 @@ export const WorkbookFormModal: React.FC<WorkbookFormModalProps> = ({
     );
   const [includeStarterColumns, setIncludeStarterColumns] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
+  const [parsedImport, setParsedImport] = useState<ParsedSpreadsheetFile | null>(null);
+  const [selectedImportSheetIdx, setSelectedImportSheetIdx] = useState(0);
+
+  const selectedImportSheet = parsedImport?.sheets[selectedImportSheetIdx] ?? null;
+  const extractedImport = useMemo(() => {
+    if (!selectedImportSheet) return null;
+    return buildDetectedColumnsFromMatrix(
+      selectedImportSheet.rawRows,
+      headerRowIndex
+    );
+  }, [selectedImportSheet, headerRowIndex]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -61,6 +86,29 @@ export const WorkbookFormModal: React.FC<WorkbookFormModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isSubmitting, onClose]);
 
+  const handleImportFile = async (file: File) => {
+    setError(null);
+    try {
+      const parsed = await parseUploadedSpreadsheetFile(file);
+      setParsedImport(parsed);
+      setSelectedImportSheetIdx(0);
+      const firstSheet = parsed.sheets[0];
+      setHeaderRowIndex(firstSheet.headerRowIndex);
+      if (!name.trim()) {
+        setName(
+          file.name.replace(/\.(xlsx|csv)$/i, '').replace(/[_-]+/g, ' ').trim() ||
+            firstSheet.sheetName
+        );
+      }
+      setSheetName(sanitizeSheetName(firstSheet.sheetName));
+    } catch (err) {
+      setParsedImport(null);
+      setError(
+        err instanceof Error ? err.message : 'Unable to parse selected spreadsheet.'
+      );
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = name.trim();
@@ -70,6 +118,24 @@ export const WorkbookFormModal: React.FC<WorkbookFormModalProps> = ({
     }
     setError(null);
     try {
+      let importedColumns: BuilderColumn[] | undefined;
+      let importedRows: Array<Record<string, BuilderCellValue>> | undefined;
+
+      if (mode === 'create' && extractedImport && extractedImport.columns.length > 0) {
+        importedColumns = extractedImport.columns.map((c, idx) => ({
+          ...c,
+          id: createUniqueBuilderId('col'),
+          order: idx,
+        }));
+        importedRows = extractedImport.dataRows.map((rawCells) => {
+          const rowValues: Record<string, BuilderCellValue> = {};
+          importedColumns!.forEach((col, colIdx) => {
+            rowValues[col.id] = normalizeCellValue(col, rawCells[colIdx] ?? '');
+          });
+          return rowValues;
+        });
+      }
+
       await onSubmit({
         name: trimmed,
         industry,
@@ -80,6 +146,8 @@ export const WorkbookFormModal: React.FC<WorkbookFormModalProps> = ({
         autoFilter,
         duplicateStrategy,
         includeStarterColumns,
+        importedColumns,
+        importedRows,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to save workbook.');
@@ -117,13 +185,88 @@ export const WorkbookFormModal: React.FC<WorkbookFormModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={(e) => void handleSubmit(e)} className="p-6 space-y-4">
+        <form onSubmit={(e) => void handleSubmit(e)} className="p-6 space-y-4 max-h-[82vh] overflow-y-auto">
           {error && (
             <div
               role="alert"
               className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-medium text-red-700"
             >
               {error}
+            </div>
+          )}
+
+          {mode === 'create' && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3.5 space-y-2.5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="text-xs font-semibold text-slate-800">
+                    Optional: Build Ready Sheet from Existing File (.xlsx / .csv)
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Upload a sheet from PC or phone to extract all headers, inferred cell types, and rows automatically.
+                  </p>
+                </div>
+                <div className="shrink-0">
+                  <input
+                    ref={importInputRef}
+                    type="file"
+                    accept=".xlsx,.csv,.xls"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) void handleImportFile(f);
+                      e.target.value = '';
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => importInputRef.current?.click()}
+                    className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 hover:bg-slate-100 whitespace-nowrap"
+                  >
+                    <Upload className="h-3.5 w-3.5 text-[#107C41]" />
+                    <span>{parsedImport ? 'Change File' : 'Choose .xlsx / .csv'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {parsedImport && selectedImportSheet && extractedImport && (
+                <div className="flex flex-col gap-2 border-t border-slate-200 pt-2.5 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-mono text-[#166534] font-semibold">
+                      {parsedImport.fileName} · {extractedImport.columns.length} headers · {extractedImport.dataRows.length} rows ready
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setParsedImport(null)}
+                      className="text-xs font-medium text-slate-500 hover:text-slate-900"
+                    >
+                      Remove File
+                    </button>
+                  </div>
+                  {parsedImport.sheets.length > 1 && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-600 font-medium">Tab:</span>
+                      <select
+                        value={selectedImportSheetIdx}
+                        onChange={(e) => {
+                          const idx = Number(e.target.value);
+                          setSelectedImportSheetIdx(idx);
+                          const sh = parsedImport.sheets[idx];
+                          setHeaderRowIndex(sh.headerRowIndex);
+                          setSheetName(sanitizeSheetName(sh.sheetName));
+                        }}
+                        className="min-h-[32px] rounded border border-slate-300 bg-white px-2 py-1 text-xs"
+                      >
+                        {parsedImport.sheets.map((s, idx) => (
+                          <option key={s.sheetName} value={idx}>
+                            {s.sheetName} ({s.rowCount} rows)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -264,7 +407,7 @@ export const WorkbookFormModal: React.FC<WorkbookFormModalProps> = ({
               />
               <span>Enable Excel AutoFilter row</span>
             </label>
-            {mode === 'create' && (
+            {mode === 'create' && !parsedImport && (
               <label className="inline-flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
                 <input
                   type="checkbox"

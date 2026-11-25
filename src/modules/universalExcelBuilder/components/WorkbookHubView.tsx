@@ -1,14 +1,16 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   Archive,
   ArchiveRestore,
   Copy,
+  Download,
   FileSpreadsheet,
   FolderOpen,
   Pencil,
   Plus,
   Search,
   Trash2,
+  Upload,
 } from 'lucide-react';
 import { BUILDER_INDUSTRIES, BuilderIndustry } from '../config';
 import { BuilderWorkbook } from '../types';
@@ -19,7 +21,9 @@ interface WorkbookHubViewProps {
   workbooks: BuilderWorkbook[];
   isLoading: boolean;
   onCreateNew: () => void;
+  onImportFile: (file: File) => void;
   onOpenWorkbook: (workbook: BuilderWorkbook) => void;
+  onExportWorkbook: (workbook: BuilderWorkbook) => void;
   onEditWorkbook: (workbook: BuilderWorkbook) => void;
   onDuplicateWorkbook: (workbook: BuilderWorkbook, includeRecords: boolean) => Promise<void>;
   onToggleArchive: (workbook: BuilderWorkbook) => Promise<void>;
@@ -42,12 +46,15 @@ export const WorkbookHubView: React.FC<WorkbookHubViewProps> = ({
   workbooks,
   isLoading,
   onCreateNew,
+  onImportFile,
   onOpenWorkbook,
+  onExportWorkbook,
   onEditWorkbook,
   onDuplicateWorkbook,
   onToggleArchive,
   onDeleteWorkbook,
 }) => {
+  const hubImportInputRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [industryFilter, setIndustryFilter] = useState<'all' | BuilderIndustry>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
@@ -130,14 +137,35 @@ export const WorkbookHubView: React.FC<WorkbookHubViewProps> = ({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={onCreateNew}
-          className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-lg bg-[#107C41] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#0B5E31] whitespace-nowrap shrink-0"
-        >
-          <Plus className="h-4 w-4" />
-          <span>New Workbook</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <input
+            ref={hubImportInputRef}
+            type="file"
+            accept=".xlsx,.csv,.xls"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) onImportFile(file);
+              e.target.value = '';
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => hubImportInputRef.current?.click()}
+            className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-800 transition-colors hover:bg-slate-50 whitespace-nowrap shrink-0"
+          >
+            <Upload className="h-4 w-4 text-[#107C41]" />
+            <span>Import File (.xlsx / .csv)</span>
+          </button>
+          <button
+            type="button"
+            onClick={onCreateNew}
+            className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-lg bg-[#107C41] px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#0B5E31] whitespace-nowrap shrink-0"
+          >
+            <Plus className="h-4 w-4" />
+            <span>New Workbook</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter Toolbar */}
@@ -221,14 +249,24 @@ export const WorkbookHubView: React.FC<WorkbookHubViewProps> = ({
           <p className="mx-auto mt-1.5 max-w-md text-xs leading-relaxed text-slate-500">
             Design custom column schemas for Banking, Sales, HR, Inventory, Healthcare, Education, or any business ledger—stored permanently without affecting Call Sheet Manager.
           </p>
-          <button
-            type="button"
-            onClick={onCreateNew}
-            className="mt-5 inline-flex min-h-[42px] items-center gap-2 rounded-lg bg-[#107C41] px-5 py-2 text-xs font-semibold text-white hover:bg-[#0B5E31] whitespace-nowrap"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Create First Workbook</span>
-          </button>
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={onCreateNew}
+              className="inline-flex min-h-[42px] items-center gap-2 rounded-lg bg-[#107C41] px-5 py-2 text-xs font-semibold text-white hover:bg-[#0B5E31] whitespace-nowrap"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Create First Workbook</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => hubImportInputRef.current?.click()}
+              className="inline-flex min-h-[42px] items-center gap-2 rounded-lg border border-slate-300 bg-white px-5 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap"
+            >
+              <Upload className="h-4 w-4 text-[#107C41]" />
+              <span>Import Sheet from PC / Phone</span>
+            </button>
+          </div>
         </div>
       ) : filteredWorkbooks.length === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-white px-6 py-12 text-center">
@@ -338,6 +376,15 @@ export const WorkbookHubView: React.FC<WorkbookHubViewProps> = ({
                       >
                         <FolderOpen className="h-3.5 w-3.5 text-[#107C41]" />
                         <span>Open</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isBusy || wb.columns.length === 0}
+                        onClick={() => onExportWorkbook(wb)}
+                        className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap disabled:opacity-50"
+                      >
+                        <Download className="h-3.5 w-3.5 text-[#107C41]" />
+                        <span>Download</span>
                       </button>
                       <button
                         type="button"

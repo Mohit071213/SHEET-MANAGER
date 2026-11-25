@@ -47,6 +47,9 @@ import {
   pushBuilderWorkbookToCloud,
 } from './cloudSync';
 import {
+  BuilderExportFormat,
+  exportWorkbookToCsvBlob,
+  exportWorkbookToJsonBlob,
   exportWorkbookToXlsxBlob,
   triggerBuilderBlobDownload,
 } from './excelIOEngine';
@@ -68,6 +71,10 @@ import { BulkEntryView } from './components/BulkEntryView';
 import { DataGridView } from './components/DataGridView';
 import { ShortcutRulesView } from './components/ShortcutRulesView';
 import { ImportExportView } from './components/ImportExportView';
+import {
+  ExportRenameModal,
+  ExportRenamePayload,
+} from './components/ExportRenameModal';
 
 interface UniversalExcelBuilderAppProps {
   user?: User | null;
@@ -112,6 +119,14 @@ export const UniversalExcelBuilderApp: React.FC<UniversalExcelBuilderAppProps> =
     mode: 'create' | 'edit';
     target: BuilderWorkbook | null;
   }>({ open: false, mode: 'create', target: null });
+  const [exportModalState, setExportModalState] = useState<{
+    open: boolean;
+    workbook: BuilderWorkbook;
+    records: BuilderRecord[];
+    rules: BuilderShortcutRule[];
+    initialFormat: BuilderExportFormat;
+  } | null>(null);
+  const [stagedImportFile, setStagedImportFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(
     null
@@ -195,13 +210,38 @@ export const UniversalExcelBuilderApp: React.FC<UniversalExcelBuilderAppProps> =
           freezeHeader: values.freezeHeader,
           autoFilter: values.autoFilter,
           duplicateStrategy: values.duplicateStrategy,
-          includeStarterColumns: values.includeStarterColumns,
+          includeStarterColumns: values.importedColumns
+            ? false
+            : values.includeStarterColumns,
+          columns: values.importedColumns,
           ownerId: effectiveOwnerId,
         });
+        let finalWorkbook = created;
+        if (values.importedRows && values.importedRows.length > 0) {
+          const batchRes = await addBuilderRecordsBatch(
+            created.id,
+            values.importedRows.map((rowValues) => ({
+              values: rowValues,
+              source: 'import',
+            })),
+            effectiveOwnerId
+          );
+          finalWorkbook = batchRes.workbook;
+        }
         await refreshWorkbooksAndTemplates();
-        await openWorkbookWorkspace(created, 'columns');
+        await openWorkbookWorkspace(
+          finalWorkbook,
+          values.importedColumns && values.importedColumns.length > 0
+            ? 'preview'
+            : 'columns'
+        );
         setModalState({ open: false, mode: 'create', target: null });
-        showToast('success', `Created workbook "${created.name}".`);
+        showToast(
+          'success',
+          values.importedColumns
+            ? `Created ready sheet "${finalWorkbook.name}" (${finalWorkbook.columns.length} columns, ${finalWorkbook.rowCount} rows).`
+            : `Created workbook "${finalWorkbook.name}".`
+        );
       } else if (modalState.target) {
         const updated = await updateBuilderWorkbook(modalState.target.id, {
           name: values.name,
@@ -418,9 +458,18 @@ export const UniversalExcelBuilderApp: React.FC<UniversalExcelBuilderAppProps> =
   };
 
   const handleAppendImportedRows = async (
-    rows: Array<Record<string, BuilderCellValue>>
+    rows: Array<Record<string, BuilderCellValue>>,
+    newColumnsToAdd?: BuilderColumn[]
   ) => {
     if (!selectedWorkbook) return;
+    if (newColumnsToAdd && newColumnsToAdd.length > 0) {
+      const mergedColumns = [...selectedWorkbook.columns, ...newColumnsToAdd].map(
+        (col, idx) => ({ ...col, order: idx })
+      );
+      await updateBuilderWorkbook(selectedWorkbook.id, {
+        columns: mergedColumns,
+      });
+    }
     const res = await addBuilderRecordsBatch(
       selectedWorkbook.id,
       rows.map((values) => ({ values, source: 'import' })),
@@ -432,20 +481,97 @@ export const UniversalExcelBuilderApp: React.FC<UniversalExcelBuilderAppProps> =
     setViewSection('preview');
     showToast(
       'success',
-      `Imported ${res.addedRecords.length} row(s) into "${res.workbook.name}".`
+      `Imported ${res.addedRecords.length} row(s) into "${res.workbook.name}"${
+        newColumnsToAdd && newColumnsToAdd.length > 0
+          ? ` (added ${newColumnsToAdd.length} new column${
+              newColumnsToAdd.length === 1 ? '' : 's'
+            })`
+          : ''
+      }.`
     );
   };
 
-  const handleQuickExportXlsx = async () => {
-    if (!selectedWorkbook) return;
+  const handleOpenExportModal = async (
+    targetWorkbook: BuilderWorkbook,
+    initialFormat: BuilderExportFormat = 'xlsx',
+    preloadedRecords?: BuilderRecord[],
+    preloadedRules?: BuilderShortcutRule[]
+  ) => {
+    const [recs, rls] =
+      preloadedRecords && preloadedRules
+        ? [preloadedRecords, preloadedRules]
+        : await Promise.all([
+            listWorkbookRecords(targetWorkbook.id),
+            listWorkbookRules(targetWorkbook.id),
+          ]);
+    setExportModalState({
+      open: true,
+      workbook: targetWorkbook,
+      records: recs,
+      rules: rls,
+      initialFormat,
+    });
+  };
+
+  const handleConfirmExportModal = async (payload: ExportRenamePayload) => {
+    if (!exportModalState) return;
     setIsQuickExporting(true);
     try {
-      const { blob, fileName } = await exportWorkbookToXlsxBlob(
-        selectedWorkbook,
-        workbookRecords
-      );
-      triggerBuilderBlobDownload(blob, fileName);
-      showToast('success', `Downloaded ${fileName}.`);
+      let targetWb = exportModalState.workbook;
+      if (payload.persistChangesToWorkbook) {
+        const nextColumns =
+          Object.keys(payload.headerOverrides).length > 0
+            ? targetWb.columns.map((col) => ({
+                ...col,
+                label: payload.headerOverrides[col.id]?.trim() || col.label,
+              }))
+            : targetWb.columns;
+        const updated = await updateBuilderWorkbook(targetWb.id, {
+          name: payload.fileName,
+          sheetName: payload.sheetName,
+          columns: nextColumns,
+        });
+        targetWb = updated;
+        await refreshWorkbooksAndTemplates();
+        if (selectedWorkbook?.id === updated.id) {
+          setSelectedWorkbook(updated);
+          await loadActiveWorkbookDetails(updated.id);
+        }
+      }
+
+      const exportOptions = {
+        fileName: payload.fileName,
+        sheetName: payload.sheetName,
+        headerOverrides: payload.headerOverrides,
+      };
+
+      if (payload.format === 'xlsx') {
+        const { blob, fileName } = await exportWorkbookToXlsxBlob(
+          targetWb,
+          exportModalState.records,
+          exportOptions
+        );
+        triggerBuilderBlobDownload(blob, fileName);
+        showToast('success', `Downloaded ${fileName}.`);
+      } else if (payload.format === 'csv') {
+        const { blob, fileName } = exportWorkbookToCsvBlob(
+          targetWb,
+          exportModalState.records,
+          exportOptions
+        );
+        triggerBuilderBlobDownload(blob, fileName);
+        showToast('success', `Downloaded ${fileName}.`);
+      } else {
+        const { blob, fileName } = exportWorkbookToJsonBlob(
+          targetWb,
+          exportModalState.records,
+          exportModalState.rules,
+          exportOptions
+        );
+        triggerBuilderBlobDownload(blob, fileName);
+        showToast('success', `Downloaded ${fileName}.`);
+      }
+      setExportModalState(null);
     } catch (err) {
       showToast(
         'error',
@@ -611,7 +737,14 @@ export const UniversalExcelBuilderApp: React.FC<UniversalExcelBuilderAppProps> =
             <button
               type="button"
               disabled={isQuickExporting || selectedWorkbook.columns.length === 0}
-              onClick={() => void handleQuickExportXlsx()}
+              onClick={() =>
+                void handleOpenExportModal(
+                  selectedWorkbook,
+                  'xlsx',
+                  workbookRecords,
+                  workbookRules
+                )
+              }
               className="hidden sm:inline-flex min-h-[38px] items-center gap-1.5 rounded-lg bg-[#107C41] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-[#0B5E31] whitespace-nowrap shrink-0 disabled:opacity-50"
             >
               <Download className="h-3.5 w-3.5" />
@@ -793,10 +926,13 @@ export const UniversalExcelBuilderApp: React.FC<UniversalExcelBuilderAppProps> =
             rules={[]}
             user={user}
             isSyncingCloud={isSyncingCloud}
+            initialImportFile={stagedImportFile}
+            onConsumedInitialImportFile={() => setStagedImportFile(null)}
             onCreateWorkbookFromImport={handleCreateWorkbookFromImport}
             onAppendImportedRows={handleAppendImportedRows}
             onPushWorkbookCloud={handlePushWorkbookCloud}
             onPullAllCloud={handlePullAllCloud}
+            onRequestExport={() => {}}
           />
         )}
 
@@ -807,7 +943,13 @@ export const UniversalExcelBuilderApp: React.FC<UniversalExcelBuilderAppProps> =
             onCreateNew={() =>
               setModalState({ open: true, mode: 'create', target: null })
             }
+            onImportFile={(file) => {
+              setSelectedWorkbook(null);
+              setStagedImportFile(file);
+              setViewSection('standalone-import');
+            }}
             onOpenWorkbook={(wb) => void openWorkbookWorkspace(wb)}
+            onExportWorkbook={(wb) => void handleOpenExportModal(wb, 'xlsx')}
             onEditWorkbook={(wb) =>
               setModalState({ open: true, mode: 'edit', target: wb })
             }
@@ -858,6 +1000,10 @@ export const UniversalExcelBuilderApp: React.FC<UniversalExcelBuilderAppProps> =
             rules={workbookRules}
             onCommitBulkRows={handleCommitBulkRows}
             onGoToRules={() => setViewSection('rules')}
+            onImportFile={(file) => {
+              setStagedImportFile(file);
+              setViewSection('import-export');
+            }}
           />
         )}
 
@@ -891,10 +1037,20 @@ export const UniversalExcelBuilderApp: React.FC<UniversalExcelBuilderAppProps> =
             rules={workbookRules}
             user={user}
             isSyncingCloud={isSyncingCloud}
+            initialImportFile={stagedImportFile}
+            onConsumedInitialImportFile={() => setStagedImportFile(null)}
             onCreateWorkbookFromImport={handleCreateWorkbookFromImport}
             onAppendImportedRows={handleAppendImportedRows}
             onPushWorkbookCloud={handlePushWorkbookCloud}
             onPullAllCloud={handlePullAllCloud}
+            onRequestExport={(format) =>
+              void handleOpenExportModal(
+                selectedWorkbook,
+                format,
+                workbookRecords,
+                workbookRules
+              )
+            }
           />
         )}
       </main>
@@ -910,6 +1066,21 @@ export const UniversalExcelBuilderApp: React.FC<UniversalExcelBuilderAppProps> =
             }
           }}
           onSubmit={handleSubmitModal}
+        />
+      )}
+
+      {exportModalState?.open && (
+        <ExportRenameModal
+          workbook={exportModalState.workbook}
+          rowCount={exportModalState.records.length}
+          initialFormat={exportModalState.initialFormat}
+          isExporting={isQuickExporting}
+          onClose={() => {
+            if (!isQuickExporting) {
+              setExportModalState(null);
+            }
+          }}
+          onConfirmDownload={handleConfirmExportModal}
         />
       )}
     </div>
